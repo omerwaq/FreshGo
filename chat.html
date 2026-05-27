@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fresh Go — Messenger Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 480px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      box-shadow: 0 0 40px rgba(0,0,0,0.12);
+    }
+
+    /* ── Header ── */
+    .header {
+      background: white;
+      border-bottom: 1px solid #e4e6eb;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 40px; height: 40px;
+      background: #2d7a2d;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .header-info h2 { font-size: 15px; color: #1c1e21; }
+    .header-info p  { font-size: 12px; color: #65676b; }
+
+    .online-dot {
+      width: 10px; height: 10px;
+      background: #42b72a;
+      border-radius: 50%;
+      border: 2px solid white;
+      margin-left: -14px;
+      margin-top: 26px;
+    }
+
+    /* ── Mode Toggle ── */
+    .mode-bar {
+      display: flex;
+      background: #f0f2f5;
+      padding: 6px;
+      gap: 4px;
+      border-bottom: 1px solid #e4e6eb;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 7px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: #65676b;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: white;
+      color: #1c1e21;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .mode-btn.admin.active { color: #2d7a2d; }
+    .mode-btn.customer.active { color: #1877f2; }
+
+    /* ── Chat Box ── */
+    .chat-box {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: white;
+    }
+
+    .date-divider {
+      text-align: center;
+      font-size: 11px;
+      color: #65676b;
+      margin: 8px 0;
+    }
+
+    /* ── Bubbles ── */
+    .row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .row.sent     { justify-content: flex-end; }
+    .row.received { justify-content: flex-start; }
+
+    .row-avatar {
+      width: 28px; height: 28px;
+      background: #2d7a2d;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 14px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .row.sent .bubble {
+      background: #0084ff;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .row.received .bubble {
+      background: #f0f2f5;
+      color: #1c1e21;
+      border-bottom-left-radius: 4px;
+    }
+
+    /* Image bubble */
+    .img-bubble {
+      max-width: 85%;
+      background: #f0f2f5;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #e4e6eb;
+    }
+    .img-bubble .img-label {
+      font-size: 11px;
+      color: #65676b;
+      font-weight: 600;
+      padding: 8px 12px 4px;
+    }
+    .img-bubble img {
+      width: 100%;
+      display: block;
+      max-height: 280px;
+      object-fit: cover;
+    }
+    .img-spinner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #65676b;
+    }
+    .spin {
+      width: 18px; height: 18px;
+      border: 2px solid #e4e6eb;
+      border-top-color: #2d7a2d;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .img-open-link {
+      display: block;
+      font-size: 11px;
+      color: #0084ff;
+      text-decoration: none;
+      padding: 6px 12px 8px;
+    }
+    .btn-retry {
+      background: #f0f2f5;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-retry:hover { background: #e4e6eb; }
+
+    /* Published post bubble */
+    .published-bubble {
+      max-width: 85%;
+      background: #f0fff0;
+      border: 1px solid #42b72a;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+    .published-bubble .pub-label {
+      color: #42b72a;
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+    .published-bubble .pub-sublabel {
+      color: #999;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    .published-bubble .pub-text {
+      color: #1c1e21;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    /* Typing indicator */
+    .typing-row { display: flex; align-items: flex-end; gap: 6px; }
+    .typing-bubble {
+      background: #f0f2f5;
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      padding: 12px 16px;
+      display: flex; gap: 4px; align-items: center;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      background: #65676b;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40%           { transform: translateY(-5px); }
+    }
+
+    /* ── Input Area ── */
+    .input-area {
+      border-top: 1px solid #e4e6eb;
+      padding: 10px 12px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      background: white;
+    }
+
+    #msgInput {
+      flex: 1;
+      background: #f0f2f5;
+      border: none;
+      border-radius: 20px;
+      padding: 10px 14px;
+      font-size: 14px;
+      outline: none;
+      resize: none;
+      max-height: 100px;
+      font-family: inherit;
+      line-height: 1.4;
+    }
+
+    .send-btn {
+      width: 36px; height: 36px;
+      background: #0084ff;
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .send-btn:hover    { background: #0073e6; }
+    .send-btn:disabled { background: #bcc0c4; cursor: not-allowed; }
+
+    /* ── Hint bar ── */
+    .hint-bar {
+      background: #fffbe6;
+      border-top: 1px solid #ffe58f;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: #7a6000;
+      text-align: center;
+    }
+    .hint-bar.admin-hint { background: #f0fff0; border-color: #b7eb8f; color: #135200; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div style="position:relative">
+      <div class="avatar">🐄</div>
+      <div class="online-dot"></div>
+    </div>
+    <div class="header-info">
+      <h2>Fresh Go</h2>
+      <p>🟢 Active now</p>
+    </div>
+    <div style="margin-left:auto; font-size:11px; color:#65676b; background:#f0f2f5; padding:4px 10px; border-radius:12px;">
+      Local Test
+    </div>
+  </div>
+
+  <!-- Mode Toggle -->
+  <div class="mode-bar">
+    <button class="mode-btn customer active" id="btnCustomer" onclick="setMode('customer')">
+      👤 Customer View
+    </button>
+    <button class="mode-btn admin" id="btnAdmin" onclick="setMode('admin')">
+      🔑 Admin View
+    </button>
+  </div>
+
+  <!-- Chat Box -->
+  <div class="chat-box" id="chatBox">
+    <div class="date-divider">Today</div>
+    <div class="row received">
+      <div class="row-avatar">🐄</div>
+      <div class="bubble" id="welcomeBubble">
+        Hi! 👋 Welcome to Fresh Go. How can I help you today?
+      </div>
+    </div>
+  </div>
+
+  <!-- Hint -->
+  <div class="hint-bar" id="hintBar">
+    💬 Customer mode — type any message to test support replies
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <textarea id="msgInput" rows="1" placeholder="Type a message..."
+      oninput="autoResize(this)"
+      onkeydown="handleKey(event)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="send()">➤</button>
+  </div>
+
+</div>
+
+<script>
+  let mode = 'customer';
+
+  function setMode(m) {
+    mode = m;
+    const box = document.getElementById('chatBox');
+
+    // Toggle buttons
+    document.getElementById('btnCustomer').classList.toggle('active', m === 'customer');
+    document.getElementById('btnAdmin').classList.toggle('active', m === 'admin');
+
+    // Clear chat
+    box.innerHTML = '<div class="date-divider">Today</div>';
+
+    const hint = document.getElementById('hintBar');
+
+    if (m === 'admin') {
+      hint.className = 'hint-bar admin-hint';
+      hint.textContent = '🔑 Admin mode — try: !post Eid discount on fresh milk';
+      appendReceived('Hey Admin! 👋 Use *!post <topic>* to create a Facebook post, or *!help* for commands.');
+    } else {
+      hint.className = 'hint-bar';
+      hint.textContent = '💬 Customer mode — type any message to test support replies';
+      appendReceived('Hi! 👋 Welcome to Fresh Go. How can I help you today?');
+    }
+
+    document.getElementById('msgInput').focus();
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
+  function appendSent(text) {
+    const box = document.getElementById('chatBox');
+    const row = document.createElement('div');
+    row.className = 'row sent';
+    row.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    box.appendChild(row);
+    scrollBottom();
+  }
+
+  function appendReceived(text) {
+    const box = document.getElementById('chatBox');
+    const row = document.createElement('div');
+    row.className = 'row received';
+    row.innerHTML = `
+      <div class="row-avatar">🐄</div>
+      <div class="bubble">${escHtml(text)}</div>`;
+    box.appendChild(row);
+    scrollBottom();
+    return row;
+  }
+
+  function appendImage(url) {
+    const box = document.getElementById('chatBox');
+    const id  = 'img_' + Date.now();
+    const row = document.createElement('div');
+    row.className = 'row received';
+    row.innerHTML = `
+      <div class="row-avatar">🐄</div>
+      <div class="img-bubble" id="${id}">
+        <div class="img-label">🖼️ Generating image...</div>
+        <div class="img-spinner">
+          <div class="spin"></div>
+          <span>Pollinations.ai generating... (may take 15–30s)</span>
+        </div>
+      </div>`;
+    box.appendChild(row);
+    scrollBottom();
+
+    // Load image in background — no timeout race
+    const img = new Image();
+    img.onload = () => {
+      const bubble = document.getElementById(id);
+      if (!bubble) return;
+      bubble.innerHTML = `
+        <div class="img-label">🖼️ Generated Image</div>
+        <img src="${url}" style="width:100%;display:block;border-radius:0 0 10px 10px;max-height:280px;object-fit:cover"/>
+        <a href="${url}" target="_blank" class="img-open-link">🔗 Open full image</a>`;
+      scrollBottom();
+    };
+    img.onerror = () => {
+      const bubble = document.getElementById(id);
+      if (!bubble) return;
+      bubble.innerHTML = `
+        <div class="img-label" style="color:#e00">⚠️ Image failed to generate</div>
+        <div style="padding:8px 12px;display:flex;gap:8px;align-items:center">
+          <button onclick="retryImage('${id}','${url}')" class="btn-retry">🔄 Retry</button>
+          <a href="${url}" target="_blank" style="font-size:12px;color:#0084ff">Open URL manually</a>
+        </div>`;
+    };
+    img.src = url;
+  }
+
+  function retryImage(id, url) {
+    const bubble = document.getElementById(id);
+    if (!bubble) return;
+    bubble.innerHTML = `
+      <div class="img-label">🖼️ Retrying...</div>
+      <div class="img-spinner"><div class="spin"></div><span>Trying again...</span></div>`;
+    const img = new Image();
+    img.onload = () => {
+      bubble.innerHTML = `
+        <div class="img-label">🖼️ Generated Image</div>
+        <img src="${url}" style="width:100%;display:block;border-radius:0 0 10px 10px;max-height:280px;object-fit:cover"/>
+        <a href="${url}" target="_blank" class="img-open-link">🔗 Open full image</a>`;
+      scrollBottom();
+    };
+    img.onerror = () => {
+      bubble.innerHTML = `
+        <div class="img-label" style="color:#e00">⚠️ Still failed. Try opening manually.</div>
+        <div style="padding:8px 12px"><a href="${url}" target="_blank" style="color:#0084ff">🔗 Open image URL</a></div>`;
+    };
+    img.src = url + '&t=' + Date.now(); // cache bust
+  }
+
+  function appendPublished(text, imageUrl) {
+    const box = document.getElementById('chatBox');
+    const row = document.createElement('div');
+    row.className = 'row received';
+    const imgHtml = imageUrl
+      ? `<img src="${imageUrl}" alt="Post image" style="width:100%;display:block;border-radius:8px;margin-bottom:10px"/>`
+      : '';
+    row.innerHTML = `
+      <div class="row-avatar">🐄</div>
+      <div class="published-bubble">
+        <div class="pub-label">✅ Post Preview (Local Test)</div>
+        <div class="pub-sublabel">Connect Facebook to publish for real</div>
+        ${imgHtml}
+        <div class="pub-text">${escHtml(text)}</div>
+      </div>`;
+    box.appendChild(row);
+    scrollBottom();
+  }
+
+  function showTyping() {
+    const box = document.getElementById('chatBox');
+    const row = document.createElement('div');
+    row.className = 'typing-row';
+    row.id = 'typingRow';
+    row.innerHTML = `
+      <div class="row-avatar">🐄</div>
+      <div class="typing-bubble">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>`;
+    box.appendChild(row);
+    scrollBottom();
+  }
+
+  function removeTyping() {
+    document.getElementById('typingRow')?.remove();
+  }
+
+  function scrollBottom() {
+    const box = document.getElementById('chatBox');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function escHtml(t) {
+    return t
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/\n/g,'<br>')
+      .replace(/\*(.*?)\*/g,'<strong>$1</strong>');
+  }
+
+  async function send() {
+    const input  = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const text   = input.value.trim();
+    if (!text) return;
+
+    appendSent(text);
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, is_admin: mode === 'admin' })
+      });
+      const data = await res.json();
+      removeTyping();
+
+      if (data.replies && data.replies.length > 0) {
+        for (const reply of data.replies) {
+          if (reply.type === 'published') {
+            appendPublished(reply.text, reply.image_url);
+          } else if (reply.type === 'image') {
+            appendImage(reply.url);
+          } else {
+            appendReceived(reply.text);
+          }
+        }
+      } else {
+        appendReceived('⚠️ No response received. Check terminal for errors.');
+      }
+    } catch (e) {
+      removeTyping();
+      appendReceived('❌ Connection error. Is the app running?');
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+</script>
+</body>
+</html>
