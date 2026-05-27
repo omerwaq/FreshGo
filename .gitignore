@@ -14,3 +14,4 @@ static/images/*.png
 
 # OS
 .DS_Store
+orders.json

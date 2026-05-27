@@ -3,9 +3,13 @@ from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from ai_engine import get_support_reply, generate_post
-from facebook import send_message, publish_post
-from state import set_pending_post, get_pending_post, clear_pending_post, has_pending_post
+
+from ai_engine   import get_support_reply, generate_post
+from facebook    import send_message, publish_post
+from state       import set_pending_post, get_pending_post, clear_pending_post, has_pending_post
+from rate_limiter import is_allowed, seconds_until_reset
+from order_flow  import (has_active_order, is_order_intent,
+                          start_order, handle_order_step, get_all_orders)
 
 load_dotenv()
 
@@ -26,16 +30,12 @@ def is_admin(sender_id: str) -> bool:
 
 
 # ─────────────────────────────────────────────
-# Core logic — returns list of reply dicts
-# {"type": "message"|"published", "text": "..."}
+# Admin: post creator flow
 # ─────────────────────────────────────────────
-
 async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> list:
-    """Handle admin commands. Returns list of replies."""
-    replies = []
+    replies    = []
     text_lower = text.strip().lower()
 
-    # ── Pending post: confirm or cancel ──
     if has_pending_post(sender_id):
         if any(w in text_lower for w in CONFIRM_WORDS):
             pending   = get_pending_post(sender_id)
@@ -44,14 +44,13 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
             clear_pending_post(sender_id)
 
             if local_mode:
-                # Simulate publish locally — no Facebook token needed
                 replies.append({"type": "published", "text": post_text, "image_url": image_url})
-                replies.append({"type": "message", "text": "✅ [Local Test] Post simulated! Connect Facebook to go live. 🎉"})
+                replies.append({"type": "message",   "text": "✅ [Local Test] Post simulated! Connect Facebook to go live. 🎉"})
             else:
                 result = publish_post(post_text, image_url)
                 if "id" in result or "post_id" in result:
                     replies.append({"type": "published", "text": post_text, "image_url": image_url})
-                    replies.append({"type": "message", "text": "✅ Post published on Fresh Go page! 🎉"})
+                    replies.append({"type": "message",   "text": "✅ Post published on Fresh Go page! 🎉"})
                 else:
                     err = result.get("error", {}).get("message", "Unknown error")
                     replies.append({"type": "message", "text": f"❌ Couldn't publish. Error: {err}"})
@@ -59,32 +58,27 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
 
         elif any(w in text_lower for w in CANCEL_WORDS):
             clear_pending_post(sender_id)
-            replies.append({"type": "message", "text": "❌ Post cancelled. Send !post <topic> anytime to create a new one."})
+            replies.append({"type": "message", "text": "❌ Post cancelled. Send !post <topic> anytime."})
             return replies
-
         else:
-            # New topic while pending — fall through to regenerate
             clear_pending_post(sender_id)
             replies.append({"type": "message", "text": "🔄 Regenerating with new topic..."})
 
-    # ── !post command ──
     if text_lower.startswith("!post "):
         topic = text[6:].strip()
         if not topic:
-            replies.append({"type": "message", "text": "Please add a topic. Example:\n!post Eid discount on fresh milk 🎉"})
+            replies.append({"type": "message", "text": "Please add a topic.\nExample: !post Eid discount on fresh milk 🎉"})
             return replies
 
         replies.append({"type": "message", "text": f'⏳ Generating post + image about "{topic}"...'})
-        result = generate_post(topic)
+        result     = await generate_post(topic)          # ← now async
         post_text  = result["text"]
         image_url  = result["image_url"]
 
-        # Store both text and image in pending state
         set_pending_post(sender_id, {"text": post_text, "image_url": image_url})
 
         preview = (
-            f"📋 Post Preview:\n\n"
-            f"{post_text}\n\n"
+            f"📋 Post Preview:\n\n{post_text}\n\n"
             f"──────────────\n"
             f"Reply yes to publish ✅\n"
             f"Reply no to cancel ❌"
@@ -93,22 +87,57 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
         if image_url:
             replies.append({"type": "image", "url": image_url})
 
+    elif text_lower == "!orders":
+        orders = get_all_orders()
+        if not orders:
+            replies.append({"type": "message", "text": "📦 Koi order nahi mila abhi tak."})
+        else:
+            lines = [f"📦 Total orders: {len(orders)}\n"]
+            for o in orders[-10:]:   # last 10 only
+                lines.append(
+                    f"#{o['order_id']} | {o['timestamp']}\n"
+                    f"  {o['name']} — {o['product']} — {o['quantity']}\n"
+                    f"  📍 {o['address']} | Status: {o['status']}"
+                )
+            replies.append({"type": "message", "text": "\n\n".join(lines)})
+
     elif text_lower == "!help":
         replies.append({"type": "message", "text": (
             "🐄 Fresh Go Admin Commands:\n\n"
             "!post <topic>  →  Generate a Facebook post\n"
+            "!orders        →  View last 10 customer orders\n"
             "!help          →  Show this menu\n\n"
-            "After preview, reply yes or no."
+            "After post preview, reply yes or no."
         )})
-
     else:
-        replies.append({"type": "message", "text": "Use !post <topic> to create a post, or !help for commands. 🐄"})
+        replies.append({"type": "message", "text": "Use !post <topic>, !orders, or !help 🐄"})
 
     return replies
 
 
+# ─────────────────────────────────────────────
+# Customer: support + order flow
+# ─────────────────────────────────────────────
 async def process_customer(sender_id: str, text: str) -> list:
-    """Handle customer message. Returns list of replies."""
+
+    # ── Rate limit check ──────────────────────────────────────────────────────
+    if not is_allowed(sender_id):
+        wait = seconds_until_reset(sender_id)
+        return [{"type": "message",
+                 "text": f"Aap ne bohat zyada messages bheje hain 🙏 "
+                         f"{wait} seconds baad try karen. — Fresh Go 🐄"}]
+
+    # ── Order flow: in progress ───────────────────────────────────────────────
+    if has_active_order(sender_id):
+        reply = handle_order_step(sender_id, text)
+        return [{"type": "message", "text": reply}]
+
+    # ── Order flow: new intent detected ──────────────────────────────────────
+    if is_order_intent(text):
+        reply = start_order(sender_id)
+        return [{"type": "message", "text": reply}]
+
+    # ── Regular AI support reply ──────────────────────────────────────────────
     reply = get_support_reply(text, sender_id)
     return [{"type": "message", "text": reply}]
 
@@ -152,7 +181,6 @@ async def receive_message(request: Request):
                 else:
                     replies = await process_customer(sender_id, text)
 
-                # Send each reply to Facebook (skip "published" type — already sent via publish_post)
                 for r in replies:
                     if r["type"] == "message":
                         send_message(sender_id, r["text"])
@@ -161,14 +189,14 @@ async def receive_message(request: Request):
 
 
 # ─────────────────────────────────────────────
-# Local Test Chat (no Facebook needed)
+# Local Test Chat
 # ─────────────────────────────────────────────
 @app.post("/chat")
 async def local_chat(request: Request):
-    data      = await request.json()
-    message   = data.get("message", "").strip()
+    data       = await request.json()
+    message    = data.get("message", "").strip()
     admin_mode = data.get("is_admin", False)
-    sender_id = "admin_test" if admin_mode else "customer_test"
+    sender_id  = "admin_test" if admin_mode else "customer_test"
 
     if not message:
         return JSONResponse(status_code=400, content={"error": "Message required"})
@@ -192,7 +220,13 @@ async def serve_ui():
 
 @app.get("/health")
 async def health():
-    return {"status": "🐄 Fresh Go AI is running!", "admin_configured": bool(ADMIN_FB_ID)}
+    from order_flow import get_all_orders
+    orders = get_all_orders()
+    return {
+        "status":          "🐄 Fresh Go AI is running!",
+        "admin_configured": bool(ADMIN_FB_ID),
+        "total_orders":     len(orders),
+    }
 
 
 if __name__ == "__main__":

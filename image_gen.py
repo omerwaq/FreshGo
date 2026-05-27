@@ -66,37 +66,40 @@ def generate_image_prompt_via_ai(topic: str) -> str:
         )
 
 
-def fetch_and_save_image(topic: str) -> str | None:
+def _download_and_save(prompt: str) -> str | None:
+    """Blocking download — runs in a thread via asyncio.to_thread()."""
+    encoded = urllib.parse.quote(prompt)
+    url     = f"{POLLINATIONS_URL.format(prompt=encoded)}?width=1024&height=1024&model=flux&nologo=true"
+
+    print(f"[Image] Fetching from Pollinations...")
+    headers  = {"User-Agent": "FreshGoBot/1.0"}
+    response = requests.get(url, timeout=60, stream=True, headers=headers)
+    response.raise_for_status()
+
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.jpg"
+    filepath = os.path.join(STATIC_DIR, filename)
+
+    with open(filepath, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+    local_url = f"/static/images/{filename}"
+    print(f"[Image] Saved → {local_url}")
+    return local_url
+
+
+async def fetch_and_save_image(topic: str) -> str | None:
     """
-    Generate a smart image prompt via Groq, then fetch from Pollinations server-side.
-    Saves to static/images/ and returns the local URL path.
+    Async: generate smart prompt via Groq, then download image in a thread.
+    Server stays responsive while image downloads (no blocking).
     """
     try:
-        # Step 1: Generate a smart, brand-specific prompt
-        prompt  = generate_image_prompt_via_ai(topic)
-        encoded = urllib.parse.quote(prompt)
-
-        # Step 2: Fetch from Pollinations (model=flux = best free anonymous model)
-        url = f"{POLLINATIONS_URL.format(prompt=encoded)}?width=1024&height=1024&model=flux&nologo=true"
-
-        print(f"[Image] Fetching from Pollinations...")
-        headers = {"User-Agent": "FreshGoBot/1.0"}
-        response = requests.get(url, timeout=60, stream=True, headers=headers)
-        response.raise_for_status()
-
-        # Step 3: Save locally and serve from our server
-        os.makedirs(STATIC_DIR, exist_ok=True)
-        filename = f"{uuid.uuid4().hex}.jpg"
-        filepath = os.path.join(STATIC_DIR, filename)
-
-        with open(filepath, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        local_url = f"/static/images/{filename}"
-        print(f"[Image] Saved → {local_url}")
+        prompt = generate_image_prompt_via_ai(topic)
+        # Run blocking download in thread pool — doesn't freeze the server
+        import asyncio
+        local_url = await asyncio.to_thread(_download_and_save, prompt)
         return local_url
-
     except Exception as e:
         print(f"[Image Error] {e}")
         return None
