@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Fresh Go — Admin Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐄</text></svg>"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --sb:#0b1f14;
+  --sb2:#0f2a1a;
+  --acc:#10b981;
+  --acc2:#059669;
+  --bg:#f0f7f2;
+  --card:#ffffff;
+  --border:#e4ede8;
+  --text:#1a2e22;
+  --muted:#6b8a75;
+  --radius:14px;
+}
+
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+
+/* ── LAYOUT ─────────────────────────────────────────────────────────── */
+.shell{display:flex;height:100vh;overflow:hidden;}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────────────── */
+.sidebar{
+  width:240px;min-width:240px;
+  background:linear-gradient(180deg,#0b1f14 0%,#071610 100%);
+  display:flex;flex-direction:column;
+  overflow:hidden;position:relative;
+  box-shadow:4px 0 24px rgba(0,0,0,0.25);
+}
+.sidebar::before{
+  content:'';position:absolute;top:-80px;right:-60px;
+  width:200px;height:200px;
+  background:radial-gradient(circle,rgba(16,185,129,0.15),transparent 70%);
+  pointer-events:none;
+}
+
+.sb-brand{
+  padding:24px 20px 20px;
+  display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.sb-logo{
+  width:42px;height:42px;
+  background:linear-gradient(135deg,#10b981,#059669);
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  box-shadow:0 4px 12px rgba(16,185,129,0.35);
+  flex-shrink:0;
+}
+.sb-brand-text h2{font-size:15px;font-weight:700;color:#fff;letter-spacing:-.2px;}
+.sb-brand-text p{font-size:10.5px;color:rgba(255,255,255,.45);margin-top:2px;}
+
+.sb-section{padding:12px 12px 0;}
+.sb-label{
+  font-size:10px;font-weight:700;letter-spacing:.1em;
+  color:rgba(255,255,255,.25);padding:0 8px;margin-bottom:6px;
+}
+.sb-item{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border-radius:10px;
+  font-size:13.5px;font-weight:500;color:rgba(255,255,255,.6);
+  cursor:pointer;transition:all .18s;margin-bottom:2px;
+  border:1px solid transparent;
+  text-decoration:none;
+}
+.sb-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);}
+.sb-item.active{
+  background:rgba(16,185,129,.18);
+  color:#4ade80;border-color:rgba(16,185,129,.25);
+}
+.sb-item .ico{
+  width:30px;height:30px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+  background:rgba(255,255,255,.05);
+}
+.sb-item.active .ico{background:rgba(16,185,129,.2);}
+
+.sb-badge{
+  margin-left:auto;background:#ef4444;color:#fff;
+  font-size:10px;font-weight:700;
+  padding:1px 7px;border-radius:20px;min-width:20px;text-align:center;
+}
+
+.sb-footer{
+  margin-top:auto;padding:16px;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.sb-status{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 12px;border-radius:10px;
+  background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);
+}
+.sb-status-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse-g 2s infinite;}
+@keyframes pulse-g{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.4);}50%{box-shadow:0 0 0 5px rgba(74,222,128,0);}}
+.sb-status-text{font-size:12px;color:rgba(255,255,255,.65);}
+
+/* ── MAIN ────────────────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* top bar */
+.topbar{
+  background:#fff;
+  padding:0 28px;
+  height:64px;min-height:64px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  box-shadow:0 1px 8px rgba(0,0,0,0.04);
+}
+.topbar-title{font-size:18px;font-weight:700;color:var(--text);}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.topbar-time{font-size:13px;color:var(--muted);font-weight:500;}
+.btn-refresh{
+  background:linear-gradient(135deg,#10b981,#059669);
+  color:#fff;border:none;border-radius:10px;
+  padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  box-shadow:0 3px 10px rgba(16,185,129,.35);
+  transition:all .2s;
+}
+.btn-refresh:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(16,185,129,.45);}
+.btn-chat{
+  background:#fff;color:var(--acc2);
+  border:1.5px solid var(--acc);border-radius:10px;
+  padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;
+  text-decoration:none;display:flex;align-items:center;gap:6px;
+  transition:all .2s;
+}
+.btn-chat:hover{background:#f0fdf4;}
+
+/* scrollable content */
+.content{flex:1;overflow-y:auto;padding:24px 28px;}
+.content::-webkit-scrollbar{width:5px;}
+.content::-webkit-scrollbar-thumb{background:#c8ddd0;border-radius:5px;}
+
+/* ── STAT CARDS ──────────────────────────────────────────────────────── */
+.stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:24px;}
+@media(max-width:1200px){.stats-grid{grid-template-columns:repeat(3,1fr);}}
+
+.stat-card{
+  border-radius:var(--radius);padding:18px 16px;
+  position:relative;overflow:hidden;cursor:default;
+  transition:transform .2s,box-shadow .2s;
+}
+.stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.12);}
+.stat-card::after{
+  content:'';position:absolute;top:-20px;right:-20px;
+  width:80px;height:80px;border-radius:50%;
+  background:rgba(255,255,255,0.12);
+}
+.stat-card .s-icon{font-size:26px;margin-bottom:10px;display:block;}
+.stat-card .s-num{font-size:32px;font-weight:800;color:#fff;line-height:1;}
+.stat-card .s-label{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);margin-top:5px;}
+
+.s-total    {background:linear-gradient(135deg,#4f46e5,#7c3aed);}
+.s-pending  {background:linear-gradient(135deg,#d97706,#f59e0b);}
+.s-confirmed{background:linear-gradient(135deg,#059669,#10b981);}
+.s-delivered{background:linear-gradient(135deg,#0891b2,#06b6d4);}
+.s-paid     {background:linear-gradient(135deg,#2563eb,#3b82f6);}
+.s-cancelled{background:linear-gradient(135deg,#dc2626,#ef4444);}
+
+/* ── TAB BAR ─────────────────────────────────────────────────────────── */
+.tab-bar{display:flex;gap:8px;margin-bottom:20px;}
+.tab{
+  padding:9px 20px;border-radius:10px;font-size:13.5px;font-weight:600;
+  cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--muted);
+  transition:all .18s;
+}
+.tab:hover{border-color:var(--acc);color:var(--acc2);}
+.tab.active{background:linear-gradient(135deg,#059669,#10b981);color:#fff;border-color:transparent;
+  box-shadow:0 3px 10px rgba(16,185,129,.3);}
+
+/* ── SECTION CARD ────────────────────────────────────────────────────── */
+.section-card{background:#fff;border-radius:var(--radius);border:1px solid var(--border);
+  box-shadow:0 2px 12px rgba(0,0,0,0.04);overflow:hidden;}
+.sc-header{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(90deg,#f9fdfb,#fff);
+}
+.sc-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;}
+
+/* ── FILTERS ─────────────────────────────────────────────────────────── */
+.filters{padding:14px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
+.filter-btn{
+  padding:6px 16px;border-radius:20px;font-size:12.5px;font-weight:600;
+  cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--muted);
+  transition:all .15s;
+}
+.filter-btn:hover{border-color:var(--acc);}
+.filter-btn.active{background:var(--acc2);color:#fff;border-color:var(--acc2);}
+.search-box{
+  margin-left:auto;padding:7px 14px;border:1.5px solid var(--border);border-radius:10px;
+  font-size:13px;outline:none;font-family:inherit;min-width:200px;
+  transition:border-color .2s;
+}
+.search-box:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(16,185,129,.1);}
+
+/* ── TABLE ───────────────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{
+  background:#f8fdf9;color:var(--muted);font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;padding:11px 16px;text-align:left;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+td{padding:12px 16px;font-size:13.5px;border-bottom:1px solid #f4f8f5;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f9fdf9;}
+
+.order-id{font-family:monospace;font-weight:700;color:var(--acc2);font-size:13px;}
+.platform-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;
+}
+.plat-fb{background:#e8f0fe;color:#1a73e8;}
+.plat-wa{background:#e8f8ef;color:#1e7e34;}
+
+/* status select */
+.status-sel{
+  padding:5px 10px;border-radius:8px;font-size:12px;font-weight:600;
+  border:none;cursor:pointer;appearance:none;text-align:center;
+  background-repeat:no-repeat;background-position:right 6px center;
+  padding-right:22px;
+}
+.sel-pending  {background:#fef3c7;color:#92400e;}
+.sel-confirmed{background:#d1fae5;color:#065f46;}
+.sel-delivered{background:#cffafe;color:#164e63;}
+.sel-cancelled{background:#fee2e2;color:#991b1b;}
+.pay-sel{
+  padding:5px 10px;border-radius:8px;font-size:12px;font-weight:600;
+  border:none;cursor:pointer;
+}
+.pay-unpaid{background:#fef3c7;color:#92400e;}
+.pay-paid  {background:#d1fae5;color:#065f46;}
+
+/* ── EMPTY / LOADING ─────────────────────────────────────────────────── */
+.empty-state{padding:48px 20px;text-align:center;color:var(--muted);}
+.empty-state .e-icon{font-size:40px;margin-bottom:12px;opacity:.5;}
+.empty-state p{font-size:14px;}
+
+.spin{
+  width:20px;height:20px;border-radius:50%;
+  border:2.5px solid #e2e8f0;border-top-color:var(--acc);
+  animation:sp .7s linear infinite;display:inline-block;
+}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+/* ── SCHEDULED POSTS ─────────────────────────────────────────────────── */
+.post-card{
+  display:grid;grid-template-columns:auto 1fr auto auto auto;
+  align-items:center;gap:16px;
+  padding:14px 20px;border-bottom:1px solid #f4f8f5;
+  transition:background .15s;
+}
+.post-card:hover{background:#f9fdf9;}
+.post-card:last-child{border-bottom:none;}
+.post-thumb{
+  width:52px;height:52px;border-radius:10px;object-fit:cover;
+  background:#e2e8f0;flex-shrink:0;
+}
+.post-thumb-placeholder{
+  width:52px;height:52px;border-radius:10px;
+  background:linear-gradient(135deg,#e2e8f0,#cbd5e1);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+}
+.post-info .post-topic{font-size:14px;font-weight:600;color:var(--text);}
+.post-info .post-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;}
+.post-dt{font-size:13px;font-weight:600;color:#374151;white-space:nowrap;}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:600;}
+.pill-pending  {background:#fef3c7;color:#92400e;}
+.pill-published{background:#d1fae5;color:#065f46;}
+.pill-failed   {background:#fee2e2;color:#991b1b;}
+.btn-cancel{
+  background:#fff;border:1.5px solid #fca5a5;color:#dc2626;border-radius:8px;
+  padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+  white-space:nowrap;
+}
+.btn-cancel:hover{background:#fee2e2;}
+
+/* ── CREATE POST FORM ────────────────────────────────────────────────── */
+.create-form{padding:24px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px;}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;
+  font-size:14px;font-family:inherit;outline:none;color:var(--text);background:#fff;
+  transition:border-color .2s;
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--acc);box-shadow:0 0 0 3px rgba(16,185,129,.1);
+}
+.form-group textarea{resize:vertical;min-height:72px;}
+.btn-generate{
+  background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;
+  border-radius:12px;padding:13px 28px;font-size:14px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;
+  box-shadow:0 4px 14px rgba(16,185,129,.35);transition:all .2s;
+}
+.btn-generate:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 20px rgba(16,185,129,.45);}
+.btn-generate:disabled{background:#a7f3d0;cursor:not-allowed;box-shadow:none;}
+.preview-box{
+  margin-top:20px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;
+  padding:18px;display:none;
+}
+.preview-box.show{display:block;}
+.preview-label{font-size:12px;font-weight:700;color:#059669;margin-bottom:10px;}
+.preview-text{font-size:13.5px;color:var(--text);line-height:1.6;white-space:pre-wrap;}
+.preview-img{width:100%;border-radius:10px;margin-top:12px;max-height:200px;object-fit:cover;}
+
+/* ── TOAST ───────────────────────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:28px;right:28px;z-index:9999;
+  padding:13px 22px;border-radius:12px;font-size:13.5px;font-weight:600;
+  color:#fff;box-shadow:0 8px 24px rgba(0,0,0,0.2);
+  transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.4,0,.2,1);
+  display:flex;align-items:center;gap:8px;
+}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{background:linear-gradient(135deg,#059669,#10b981);}
+.toast.error  {background:linear-gradient(135deg,#dc2626,#ef4444);}
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+@media(max-width:900px){
+  .sidebar{display:none;}
+  .stats-grid{grid-template-columns:repeat(3,1fr);}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">🐄</div>
+    <div class="sb-brand-text">
+      <h2>Fresh Go</h2>
+      <p>Admin Panel</p>
+    </div>
+  </div>
+
+  <div class="sb-section" style="margin-top:12px;">
+    <div class="sb-label">MAIN MENU</div>
+    <div class="sb-item active" onclick="showTab('orders',this)">
+      <div class="ico">📦</div> Orders
+      <span class="sb-badge" id="sb-pending-count">0</span>
+    </div>
+    <div class="sb-item" onclick="showTab('scheduled',this)">
+      <div class="ico">📅</div> Scheduled Posts
+    </div>
+    <div class="sb-item" onclick="showTab('create',this)">
+      <div class="ico">➕</div> Create Post
+    </div>
+  </div>
+
+  <div class="sb-section" style="margin-top:20px;">
+    <div class="sb-label">TOOLS</div>
+    <a class="sb-item" href="/" target="_blank">
+      <div class="ico">💬</div> Chat Test
+    </a>
+    <div class="sb-item" onclick="refreshAll()">
+      <div class="ico">↻</div> Refresh Data
+    </div>
+  </div>
+
+  <div class="sb-section" style="margin-top:20px;">
+    <div class="sb-label">ADMIN COMMANDS</div>
+    <div style="padding:0 8px;font-size:11.5px;color:rgba(255,255,255,.35);line-height:2;">
+      <div><code style="color:#4ade80">!post</code> &lt;topic&gt;</div>
+      <div><code style="color:#4ade80">!video</code> &lt;topic&gt;</div>
+      <div><code style="color:#4ade80">!stats</code></div>
+      <div><code style="color:#4ade80">!orders</code></div>
+      <div><code style="color:#4ade80">!update</code> FG0001 confirmed</div>
+    </div>
+  </div>
+
+  <div class="sb-footer">
+    <div class="sb-status">
+      <div class="sb-status-dot"></div>
+      <span class="sb-status-text">Bot is running</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">📦 Orders</div>
+    <div class="topbar-right">
+      <span class="topbar-time" id="live-time"></span>
+      <a class="btn-chat" href="/" target="_blank">💬 Chat UI</a>
+      <button class="btn-refresh" onclick="refreshAll()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="content">
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid" id="stats-row">
+      <div class="stat-card s-total">   <span class="s-icon">📦</span><div class="s-num" id="s-total">—</div><div class="s-label">Total Orders</div></div>
+      <div class="stat-card s-pending"> <span class="s-icon">⏳</span><div class="s-num" id="s-pending">—</div><div class="s-label">Pending</div></div>
+      <div class="stat-card s-confirmed"><span class="s-icon">✅</span><div class="s-num" id="s-confirmed">—</div><div class="s-label">Confirmed</div></div>
+      <div class="stat-card s-delivered"><span class="s-icon">🎉</span><div class="s-num" id="s-delivered">—</div><div class="s-label">Delivered</div></div>
+      <div class="stat-card s-paid">    <span class="s-icon">💰</span><div class="s-num" id="s-paid">—</div><div class="s-label">Paid</div></div>
+      <div class="stat-card s-cancelled"><span class="s-icon">❌</span><div class="s-num" id="s-cancelled">—</div><div class="s-label">Cancelled</div></div>
+    </div>
+
+    <!-- ORDERS TAB -->
+    <div id="tab-orders">
+      <div class="section-card">
+        <div class="sc-header">
+          <div class="sc-title">📦 All Orders</div>
+          <span id="order-count" style="font-size:12px;color:var(--muted);font-weight:600;"></span>
+        </div>
+        <div class="filters">
+          <button class="filter-btn active" onclick="filterOrders('all',this)">All</button>
+          <button class="filter-btn" onclick="filterOrders('pending',this)">⏳ Pending</button>
+          <button class="filter-btn" onclick="filterOrders('confirmed',this)">✅ Confirmed</button>
+          <button class="filter-btn" onclick="filterOrders('delivered',this)">🎉 Delivered</button>
+          <button class="filter-btn" onclick="filterOrders('cancelled',this)">❌ Cancelled</button>
+          <input class="search-box" type="text" placeholder="🔍  Search name, order ID, address…" oninput="searchOrders(this.value)"/>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order ID</th><th>Date & Time</th><th>Customer</th>
+                <th>Product</th><th>Qty</th><th>Address</th>
+                <th>Platform</th><th>Status</th><th>Payment</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody">
+              <tr><td colspan="9" class="empty-state">
+                <div class="spin"></div><p style="margin-top:10px;">Loading orders…</p>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="no-orders" style="display:none;" class="empty-state">
+          <div class="e-icon">📭</div>
+          <p>No orders match this filter.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCHEDULED POSTS TAB -->
+    <div id="tab-scheduled" style="display:none;">
+      <div class="section-card">
+        <div class="sc-header">
+          <div class="sc-title">📅 Scheduled Posts</div>
+          <button class="btn-refresh" style="padding:7px 16px;font-size:12px;" onclick="loadScheduled()">Reload</button>
+        </div>
+        <div id="sched-list">
+          <div class="empty-state"><div class="spin"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CREATE POST TAB -->
+    <div id="tab-create" style="display:none;">
+      <div class="section-card">
+        <div class="sc-header">
+          <div class="sc-title">➕ Schedule New Post / Video Ad</div>
+        </div>
+        <div class="create-form">
+          <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>Topic / Description</label>
+              <textarea id="new-topic" placeholder="e.g.  Eid special — 20% off fresh milk 🎉 Limited time offer!"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Post Type</label>
+              <select id="new-type">
+                <option value="image">🖼️  Image Post</option>
+                <option value="video">🎬  HD Video Ad</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Platform</label>
+              <select id="new-platform">
+                <option value="both">📘📸  Facebook + Instagram</option>
+                <option value="facebook">📘  Facebook Only</option>
+                <option value="instagram">📸  Instagram Only</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>Scheduled Date & Time</label>
+              <input type="datetime-local" id="new-datetime"/>
+            </div>
+          </div>
+          <button class="btn-generate" id="gen-btn" onclick="createPost()">
+            ⚡ Generate &amp; Schedule
+          </button>
+          <div class="preview-box" id="preview-box">
+            <div class="preview-label">✅ Scheduled Successfully!</div>
+            <div class="preview-text" id="preview-text"></div>
+            <img id="preview-img" class="preview-img" style="display:none;"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tips card -->
+      <div class="section-card" style="margin-top:16px;">
+        <div class="sc-header"><div class="sc-title">💡 Quick Tips</div></div>
+        <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;border:1px solid #bbf7d0;">
+            <div style="font-size:11px;font-weight:700;color:#059669;margin-bottom:4px;">IMAGE POST</div>
+            <div style="font-size:12.5px;color:#374151;">AI generates post text + brand image via Pollinations</div>
+          </div>
+          <div style="background:#eff6ff;border-radius:10px;padding:12px 14px;border:1px solid #bfdbfe;">
+            <div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:4px;">VIDEO AD</div>
+            <div style="font-size:12.5px;color:#374151;">Creates 3 images → HD 1080×1080 MP4 slideshow with overlays</div>
+          </div>
+          <div style="background:#fefce8;border-radius:10px;padding:12px 14px;border:1px solid #fde68a;">
+            <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px;">SCHEDULER</div>
+            <div style="font-size:12.5px;color:#374151;">Auto-publishes at exact date &amp; time. Checks every 60 seconds.</div>
+          </div>
+          <div style="background:#fdf4ff;border-radius:10px;padding:12px 14px;border:1px solid #e9d5ff;">
+            <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px;">INSTAGRAM</div>
+            <div style="font-size:12.5px;color:#374151;">Requires public BASE_URL in .env for media hosting</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .content -->
+</div><!-- .main -->
+</div><!-- .shell -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let allOrders = [], curFilter = 'all';
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function tick(){
+  const el = document.getElementById('live-time');
+  if(el) el.textContent = new Date().toLocaleString('en-PK',
+    {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+setInterval(tick,1000); tick();
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type='success'){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+const TABS = {orders:'📦 Orders', scheduled:'📅 Scheduled Posts', create:'➕ Create Post'};
+function showTab(name, sbEl){
+  Object.keys(TABS).forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
+  if(sbEl) sbEl.classList.add('active');
+  document.getElementById('page-title').textContent = TABS[name];
+  if(name==='scheduled') loadScheduled();
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+async function loadStats(){
+  try{
+    const s = await fetch('/api/stats').then(r=>r.json());
+    ['total','pending','confirmed','delivered','paid','cancelled']
+      .forEach(k => {
+        const el = document.getElementById('s-'+k);
+        if(el){ el.textContent = s[k]; el.style.animation='none'; void el.offsetWidth; el.style.animation=''; }
+      });
+    const pb = document.getElementById('sb-pending-count');
+    if(pb) pb.textContent = s.pending || 0;
+  }catch(e){ console.error(e); }
+}
+
+// ── Orders ─────────────────────────────────────────────────────────────────
+async function loadOrders(status='all'){
+  try{
+    const url = status==='all' ? '/api/orders' : `/api/orders?status=${status}`;
+    allOrders = await fetch(url).then(r=>r.json());
+    renderOrders(allOrders);
+  }catch(e){ toast('Failed to load orders','error'); }
+}
+
+function renderOrders(orders){
+  const tbody = document.getElementById('orders-tbody');
+  const noEl  = document.getElementById('no-orders');
+  if(!orders.length){
+    tbody.innerHTML='';
+    noEl.style.display='block'; return;
+  }
+  noEl.style.display='none';
+  document.getElementById('order-count').textContent = `${orders.length} order${orders.length!==1?'s':''}`;
+
+  tbody.innerHTML = orders.map(o=>{
+    const platClass = o.platform==='whatsapp' ? 'plat-wa' : 'plat-fb';
+    const platIcon  = o.platform==='whatsapp' ? '📱' : '📘';
+    const platLabel = o.platform==='whatsapp' ? 'WA' : 'FB';
+    const selClass  = {pending:'sel-pending',confirmed:'sel-confirmed',
+                       delivered:'sel-delivered',cancelled:'sel-cancelled'}[o.status]||'sel-pending';
+    const payClass  = o.payment_status==='paid' ? 'pay-paid' : 'pay-unpaid';
+    return `<tr>
+      <td><span class="order-id">${o.order_id||'—'}</span></td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap;">${o.timestamp||'—'}</td>
+      <td style="font-weight:600;">${o.name||'—'}</td>
+      <td>${o.product||'—'}</td>
+      <td style="color:var(--muted);">${o.quantity||'—'}</td>
+      <td style="font-size:12.5px;color:var(--muted);max-width:160px;" title="${o.address||''}">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">${o.address||'—'}</div>
+      </td>
+      <td><span class="platform-badge ${platClass}">${platIcon} ${platLabel}</span></td>
+      <td>
+        <select class="status-sel ${selClass}"
+          onchange="updateStatus('${o.order_id}',this.value,'${o.platform||'facebook'}','${o.customer_id||''}',this)">
+          <option value="pending"   ${o.status==='pending'   ?'selected':''}>⏳ Pending</option>
+          <option value="confirmed" ${o.status==='confirmed' ?'selected':''}>✅ Confirmed</option>
+          <option value="delivered" ${o.status==='delivered' ?'selected':''}>🎉 Delivered</option>
+          <option value="cancelled" ${o.status==='cancelled' ?'selected':''}>❌ Cancelled</option>
+        </select>
+      </td>
+      <td>
+        <select class="pay-sel ${payClass}"
+          onchange="updatePayment('${o.order_id}',this.value,this)">
+          <option value="unpaid" ${o.payment_status==='unpaid'?'selected':''}>💳 Unpaid</option>
+          <option value="paid"   ${o.payment_status==='paid'  ?'selected':''}>✅ Paid</option>
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterOrders(status, btn){
+  curFilter = status;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  loadOrders(status);
+}
+
+function searchOrders(q){
+  if(!q){ renderOrders(allOrders); return; }
+  const ql = q.toLowerCase();
+  renderOrders(allOrders.filter(o=>
+    (o.name||'').toLowerCase().includes(ql)||
+    (o.order_id||'').toLowerCase().includes(ql)||
+    (o.product||'').toLowerCase().includes(ql)||
+    (o.address||'').toLowerCase().includes(ql)
+  ));
+}
+
+async function updateStatus(orderId, status, platform, customerId, sel){
+  const classes = {pending:'sel-pending',confirmed:'sel-confirmed',delivered:'sel-delivered',cancelled:'sel-cancelled'};
+  sel.className = `status-sel ${classes[status]||'sel-pending'}`;
+  try{
+    await fetch(`/api/orders/${orderId}/status`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({status})
+    });
+    toast(`✅ ${orderId} → ${status} — customer notified`);
+    loadStats();
+  }catch(e){ toast('Update failed','error'); }
+}
+
+async function updatePayment(orderId, payStatus, sel){
+  sel.className = `pay-sel ${payStatus==='paid'?'pay-paid':'pay-unpaid'}`;
+  try{
+    const order = allOrders.find(o=>o.order_id===orderId);
+    await fetch(`/api/orders/${orderId}/status`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({status:order?.status||'pending',payment_status:payStatus})
+    });
+    toast(`💰 ${orderId} payment → ${payStatus}`);
+    loadStats();
+  }catch(e){ toast('Update failed','error'); }
+}
+
+// ── Scheduled Posts ────────────────────────────────────────────────────────
+async function loadScheduled(){
+  const list = document.getElementById('sched-list');
+  list.innerHTML = '<div class="empty-state"><div class="spin"></div></div>';
+  try{
+    const posts = await fetch('/api/scheduled-posts').then(r=>r.json());
+    if(!posts.length){
+      list.innerHTML=`<div class="empty-state"><div class="e-icon">📭</div>
+        <p>No scheduled posts yet.<br>Use "Create Post" to schedule one.</p></div>`;
+      return;
+    }
+    const pillClass = {pending:'pill-pending',published:'pill-published',
+                       failed:'pill-failed',cancelled:'pill-failed'};
+    list.innerHTML = posts.map(p=>{
+      const img = p.image_path
+        ? `<img src="${p.image_path}" class="post-thumb"/>`
+        : `<div class="post-thumb-placeholder">${p.post_type==='video'?'🎬':'🖼️'}</div>`;
+      const dt = p.scheduled_time
+        ? new Date(p.scheduled_time).toLocaleString('en-PK',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
+        : '—';
+      const cancelBtn = p.status==='pending'
+        ? `<button class="btn-cancel" onclick="cancelPost(${p.id})">Cancel</button>`
+        : '';
+      return `<div class="post-card">
+        ${img}
+        <div class="post-info">
+          <div class="post-topic">${p.topic||'—'}</div>
+          <div class="post-meta">
+            <span>${p.post_type==='video'?'🎬 Video':'🖼️ Image'}</span>
+            <span>${{facebook:'📘 Facebook',instagram:'📸 Instagram',both:'📘📸 Both'}[p.platform]||p.platform}</span>
+          </div>
+        </div>
+        <div class="post-dt">📅 ${dt}</div>
+        <span class="pill ${pillClass[p.status]||'pill-pending'}">${p.status}</span>
+        ${cancelBtn}
+      </div>`;
+    }).join('');
+  }catch(e){ toast('Failed to load scheduled posts','error'); }
+}
+
+async function cancelPost(id){
+  if(!confirm('Cancel this scheduled post?')) return;
+  try{
+    const r = await fetch(`/api/scheduled-posts/${id}`,{method:'DELETE'});
+    if(r.ok){ toast('Post cancelled'); loadScheduled(); }
+    else toast('Cannot cancel — already published','error');
+  }catch(e){ toast('Error','error'); }
+}
+
+// ── Create Post ────────────────────────────────────────────────────────────
+async function createPost(){
+  const topic = document.getElementById('new-topic').value.trim();
+  const type  = document.getElementById('new-type').value;
+  const plat  = document.getElementById('new-platform').value;
+  const dt    = document.getElementById('new-datetime').value;
+  if(!topic){ toast('Please enter a topic','error'); return; }
+  if(!dt)   { toast('Please pick a date & time','error'); return; }
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled=true;
+  btn.innerHTML = `<div class="spin" style="border-top-color:#fff;border-color:rgba(255,255,255,.3)"></div>
+    ${type==='video'?'Generating HD video (30–60s)…':'Generating image post (15–30s)…'}`;
+
+  try{
+    const resp = await fetch('/api/schedule-post',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic,post_type:type,platform:plat,
+                           scheduled_time:dt.replace('T',' ').slice(0,16)})
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error||'Server error');
+
+    const box = document.getElementById('preview-box');
+    box.classList.add('show');
+    document.getElementById('preview-text').textContent = data.preview_text||'';
+    const img = document.getElementById('preview-img');
+    if(data.image_url){ img.src=data.image_url; img.style.display='block'; }
+    toast(`✅ Post #${data.post_id} scheduled!`);
+    loadStats();
+  }catch(e){ toast('Failed: '+e.message,'error'); }
+  finally{
+    btn.disabled=false;
+    btn.innerHTML='⚡ Generate &amp; Schedule';
+  }
+}
+
+// ── Init datetime ──────────────────────────────────────────────────────────
+function initDt(){
+  const now = new Date(Date.now()+5*60*1000);
+  const p = n=>String(n).padStart(2,'0');
+  const s = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  const el = document.getElementById('new-datetime');
+  el.min=s; el.value=s;
+}
+
+// ── Refresh all ────────────────────────────────────────────────────────────
+function refreshAll(){ loadStats(); loadOrders(curFilter); toast('Refreshed ✅'); }
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+loadStats();
+loadOrders();
+initDt();
+setInterval(()=>{ loadStats(); loadOrders(curFilter); }, 60000);
+</script>
+</body>
+</html>

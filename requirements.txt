@@ -5,3 +5,7 @@ requests
 groq
 jinja2
 python-multipart
+apscheduler
+imageio[ffmpeg]
+Pillow
+numpy
