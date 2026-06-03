@@ -67,26 +67,11 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Blocking download — runs in a thread via asyncio.to_thread()."""
-    encoded = urllib.parse.quote(prompt)
-    url     = f"{POLLINATIONS_URL.format(prompt=encoded)}?width=1024&height=1024&model=flux&nologo=true"
-
-    print(f"[Image] Fetching from Pollinations...")
-    headers  = {"User-Agent": "FreshGoBot/1.0"}
-    response = requests.get(url, timeout=60, stream=True, headers=headers)
-    response.raise_for_status()
-
-    os.makedirs(STATIC_DIR, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.jpg"
-    filepath = os.path.join(STATIC_DIR, filename)
-
-    with open(filepath, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
-
-    local_url = f"/static/images/{filename}"
-    print(f"[Image] Saved → {local_url}")
-    return local_url
+    """Return direct Pollinations URL — works on cloud platforms with no persistent storage."""
+    encoded   = urllib.parse.quote(prompt)
+    public_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&model=flux&nologo=true"
+    print(f"[Image] Using direct URL: {public_url[:80]}...")
+    return public_url
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
