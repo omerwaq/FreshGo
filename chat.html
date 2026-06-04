@@ -472,13 +472,7 @@ body::before {
 let mode = 'customer';
 
 // ── Mode switch ────────────────────────────────────────────────────────────
-const ADMIN_CHIPS  = [
-  { label:'📸 Image post', text:'!post Fresh milk morning delivery' },
-  { label:'🎬 Video ad',   text:'!video Pure desi ghee for families' },
-  { label:'📦 Orders',     text:'!orders' },
-  { label:'📊 Stats',      text:'!stats' },
-  { label:'❓ Help',       text:'!help' },
-];
+const ADMIN_CHIPS  = [];
 const CUST_CHIPS = [
   { label:'🥛 Milk price',   text:'Milk ka price kya hai?' },
   { label:'🛒 Order karo',   text:'Order karna chahta hoon' },
@@ -500,8 +494,8 @@ function setMode(m) {
   const chips = ADMIN_CHIPS;
   if (m === 'admin') {
     hint.className = 'hint-bar admin';
-    hint.textContent = '🔑 Admin mode — use !post, !video, !schedule, !orders, !stats';
-    appendReceived('Hey Admin! 👋 Use <strong>!post &lt;topic&gt;</strong> to create a post, <strong>!video &lt;topic&gt;</strong> for a video ad, or <strong>!help</strong> to see all commands.');
+    hint.textContent = '🔑 Admin mode';
+    appendReceived('Hey Admin! 👋 Welcome back.');
     renderChips(ADMIN_CHIPS);
   } else {
     hint.className = 'hint-bar';
