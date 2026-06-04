@@ -67,13 +67,25 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Return a reliable image URL — uses Unsplash for dairy/farm photos."""
-    keywords = ["milk", "dairy", "farm", "cow", "fresh"]
-    seed = uuid.uuid4().hex[:8]
-    # Unsplash source — always works, no API key needed
-    url = f"https://source.unsplash.com/1024x1024/?dairy,milk,farm,cow&sig={seed}"
-    print(f"[Image] Using Unsplash: {url}")
-    return url
+    """Download image from Picsum (always works, no auth, no rate limits) and save locally."""
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    seed = abs(hash(prompt)) % 1000  # deterministic seed per prompt for variety
+    url = f"https://picsum.photos/seed/{seed}/1024/1024"
+    print(f"[Image] Downloading from Picsum: {url}")
+    try:
+        response = requests.get(url, timeout=30, stream=True)
+        response.raise_for_status()
+        filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(STATIC_DIR, filename)
+        with open(filepath, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        local_url = f"/static/images/{filename}"
+        print(f"[Image] Saved: {local_url}")
+        return local_url
+    except Exception as e:
+        print(f"[Image] Picsum failed: {e}")
+        return None
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
