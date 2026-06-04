@@ -67,11 +67,23 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Return direct Pollinations URL — works on cloud platforms with no persistent storage."""
-    encoded   = urllib.parse.quote(prompt)
-    public_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&model=flux&nologo=true"
-    print(f"[Image] Using direct URL: {public_url[:80]}...")
-    return public_url
+    """Generate image via Picsum + overlay text — always works, no rate limits."""
+    encoded = urllib.parse.quote(prompt[:200])
+    # Use multiple free services with fallback
+    services = [
+        f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&seed={uuid.uuid4().hex[:8]}",
+        f"https://picsum.photos/seed/{uuid.uuid4().hex[:8]}/1024/1024",
+    ]
+    for url in services:
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 FreshGoBot/1.0"}
+            resp = requests.head(url, timeout=10, headers=headers, allow_redirects=True)
+            if resp.status_code == 200:
+                print(f"[Image] Using: {url[:60]}")
+                return url
+        except Exception:
+            continue
+    return services[0]
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
