@@ -67,23 +67,13 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Generate image via Picsum + overlay text — always works, no rate limits."""
-    encoded = urllib.parse.quote(prompt[:200])
-    # Use multiple free services with fallback
-    services = [
-        f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&seed={uuid.uuid4().hex[:8]}",
-        f"https://picsum.photos/seed/{uuid.uuid4().hex[:8]}/1024/1024",
-    ]
-    for url in services:
-        try:
-            headers = {"User-Agent": "Mozilla/5.0 FreshGoBot/1.0"}
-            resp = requests.head(url, timeout=10, headers=headers, allow_redirects=True)
-            if resp.status_code == 200:
-                print(f"[Image] Using: {url[:60]}")
-                return url
-        except Exception:
-            continue
-    return services[0]
+    """Return a reliable image URL — uses Unsplash for dairy/farm photos."""
+    keywords = ["milk", "dairy", "farm", "cow", "fresh"]
+    seed = uuid.uuid4().hex[:8]
+    # Unsplash source — always works, no API key needed
+    url = f"https://source.unsplash.com/1024x1024/?dairy,milk,farm,cow&sig={seed}"
+    print(f"[Image] Using Unsplash: {url}")
+    return url
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
