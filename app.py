@@ -244,7 +244,7 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
 
     else:
         replies.append({"type": "message",
-                         "text": "Use !post, !video, !schedule, !orders, !stats, !update or !help 🐄"})
+                         "text": "Unknown command. Type !help to see available commands."})
 
     return replies
 
