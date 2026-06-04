@@ -67,13 +67,28 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Download image from Picsum (always works, no auth, no rate limits) and save locally."""
+    """Download a dairy/farm topic-relevant image from LoremFlickr and save locally."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    seed = abs(hash(prompt)) % 1000  # deterministic seed per prompt for variety
-    url = f"https://picsum.photos/seed/{seed}/1024/1024"
-    print(f"[Image] Downloading from Picsum: {url}")
+
+    # Extract keywords from prompt to make the image relevant
+    keywords = "milk,dairy,cow,farm"
+    prompt_lower = prompt.lower()
+    if "ghee" in prompt_lower or "butter" in prompt_lower:
+        keywords = "butter,ghee,dairy,farm"
+    elif "cow" in prompt_lower or "cattle" in prompt_lower:
+        keywords = "cow,cattle,farm,dairy"
+    elif "farm" in prompt_lower or "field" in prompt_lower:
+        keywords = "farm,field,green,countryside"
+    elif "delivery" in prompt_lower or "bottle" in prompt_lower:
+        keywords = "milk,bottle,dairy,fresh"
+
+    # LoremFlickr returns topic-matched photos, lock=0 means random each time
+    lock = uuid.uuid4().int % 10000
+    url = f"https://loremflickr.com/1024/1024/{keywords}?lock={lock}"
+    print(f"[Image] Downloading from LoremFlickr ({keywords}): {url}")
+
     try:
-        response = requests.get(url, timeout=30, stream=True)
+        response = requests.get(url, timeout=30, stream=True, allow_redirects=True)
         response.raise_for_status()
         filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
         filepath = os.path.join(STATIC_DIR, filename)
@@ -84,7 +99,7 @@ def _download_and_save(prompt: str) -> str | None:
         print(f"[Image] Saved: {local_url}")
         return local_url
     except Exception as e:
-        print(f"[Image] Picsum failed: {e}")
+        print(f"[Image] LoremFlickr failed: {e}")
         return None
 
 
