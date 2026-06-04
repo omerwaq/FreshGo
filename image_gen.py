@@ -66,12 +66,39 @@ def generate_image_prompt_via_ai(topic: str) -> str:
         )
 
 
-def _download_and_save(prompt: str) -> str | None:
-    """Download a dairy/farm topic-relevant image from LoremFlickr and save locally."""
-    os.makedirs(STATIC_DIR, exist_ok=True)
+def _try_huggingface(prompt: str) -> str | None:
+    """Generate AI image via Hugging Face Inference API (FLUX.1-schnell)."""
+    from dotenv import load_dotenv
+    load_dotenv()
+    hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
+    if not hf_token:
+        return None
 
-    # Extract keywords from prompt to make the image relevant
-    keywords = "milk,dairy,cow,farm"
+    api_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+    payload = {"inputs": prompt}
+
+    print(f"[Image] Trying Hugging Face FLUX.1-schnell...")
+    try:
+        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+        if response.status_code == 200 and response.headers.get("content-type", "").startswith("image"):
+            filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+            filepath = os.path.join(STATIC_DIR, filename)
+            with open(filepath, "wb") as f:
+                f.write(response.content)
+            local_url = f"/static/images/{filename}"
+            print(f"[Image] HuggingFace saved: {local_url}")
+            return local_url
+        else:
+            print(f"[Image] HuggingFace error {response.status_code}: {response.text[:200]}")
+            return None
+    except Exception as e:
+        print(f"[Image] HuggingFace exception: {e}")
+        return None
+
+
+def _try_loremflickr(prompt: str) -> str | None:
+    """Fallback: download a topic-relevant stock photo from LoremFlickr."""
     prompt_lower = prompt.lower()
     if "ghee" in prompt_lower or "butter" in prompt_lower:
         keywords = "butter,ghee,dairy,farm"
@@ -81,12 +108,12 @@ def _download_and_save(prompt: str) -> str | None:
         keywords = "farm,field,green,countryside"
     elif "delivery" in prompt_lower or "bottle" in prompt_lower:
         keywords = "milk,bottle,dairy,fresh"
+    else:
+        keywords = "milk,dairy,cow,farm"
 
-    # LoremFlickr returns topic-matched photos, lock=0 means random each time
     lock = uuid.uuid4().int % 10000
     url = f"https://loremflickr.com/1024/1024/{keywords}?lock={lock}"
-    print(f"[Image] Downloading from LoremFlickr ({keywords}): {url}")
-
+    print(f"[Image] Fallback LoremFlickr ({keywords}): {url}")
     try:
         response = requests.get(url, timeout=30, stream=True, allow_redirects=True)
         response.raise_for_status()
@@ -96,11 +123,17 @@ def _download_and_save(prompt: str) -> str | None:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
         local_url = f"/static/images/{filename}"
-        print(f"[Image] Saved: {local_url}")
+        print(f"[Image] LoremFlickr saved: {local_url}")
         return local_url
     except Exception as e:
         print(f"[Image] LoremFlickr failed: {e}")
         return None
+
+
+def _download_and_save(prompt: str) -> str | None:
+    """Try HuggingFace AI generation first, fall back to LoremFlickr stock photos."""
+    os.makedirs(STATIC_DIR, exist_ok=True)
+    return _try_huggingface(prompt) or _try_loremflickr(prompt)
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
