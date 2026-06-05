@@ -129,9 +129,9 @@ def _try_huggingface(prompt: str) -> str | None:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Try Pollinations AI first, then HuggingFace, no stock photo fallbacks."""
+    """Try HuggingFace first (token set in Railway), Pollinations as backup."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    return _try_pollinations(prompt) or _try_huggingface(prompt)
+    return _try_huggingface(prompt) or _try_pollinations(prompt)
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
