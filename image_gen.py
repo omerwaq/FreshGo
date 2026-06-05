@@ -102,30 +102,62 @@ def _try_pollinations(prompt: str) -> str | None:
 
 
 def _try_huggingface(prompt: str) -> str | None:
-    """Generate AI image via Hugging Face Inference API (FLUX.1-schnell)."""
+    """Generate AI image via HuggingFace — handles model cold-start retries."""
     from dotenv import load_dotenv
     load_dotenv()
     hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
     if not hf_token:
+        print("[Image] No HUGGINGFACE_API_TOKEN set")
         return None
-    api_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-    headers = {"Authorization": f"Bearer {hf_token}"}
-    print(f"[Image] Trying HuggingFace FLUX.1-schnell...")
-    try:
-        response = requests.post(api_url, headers=headers, json={"inputs": prompt}, timeout=90)
-        if response.status_code == 200 and response.headers.get("content-type", "").startswith("image"):
-            filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
-            filepath = os.path.join(STATIC_DIR, filename)
-            with open(filepath, "wb") as f:
-                f.write(response.content)
-            local_url = f"/static/images/{filename}"
-            print(f"[Image] HuggingFace saved: {local_url}")
-            return local_url
-        print(f"[Image] HuggingFace error {response.status_code}: {response.text[:200]}")
-        return None
-    except Exception as e:
-        print(f"[Image] HuggingFace exception: {e}")
-        return None
+
+    models = [
+        "black-forest-labs/FLUX.1-schnell",
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        "runwayml/stable-diffusion-v1-5",
+    ]
+    headers = {
+        "Authorization": f"Bearer {hf_token}",
+        "Accept": "image/jpeg",
+    }
+
+    for model in models:
+        print(f"[Image] Trying HuggingFace model: {model}")
+        for attempt in range(4):
+            try:
+                response = requests.post(
+                    f"https://api-inference.huggingface.co/models/{model}",
+                    headers=headers,
+                    json={"inputs": prompt},
+                    timeout=120,
+                )
+                ctype = response.headers.get("content-type", "")
+                if response.status_code == 200 and "image" in ctype:
+                    filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+                    filepath = os.path.join(STATIC_DIR, filename)
+                    with open(filepath, "wb") as f:
+                        f.write(response.content)
+                    local_url = f"/static/images/{filename}"
+                    print(f"[Image] HuggingFace saved ({model}): {local_url}")
+                    return local_url
+
+                # Model is loading — wait and retry
+                if response.status_code == 503:
+                    try:
+                        wait = response.json().get("estimated_time", 20)
+                    except Exception:
+                        wait = 20
+                    print(f"[Image] Model loading, waiting {wait}s...")
+                    time.sleep(min(wait + 5, 60))
+                    continue
+
+                print(f"[Image] HuggingFace {response.status_code}: {response.text[:300]}")
+                break  # non-503 error, try next model
+
+            except Exception as e:
+                print(f"[Image] HuggingFace exception ({model}): {e}")
+                time.sleep(5)
+
+    return None
 
 
 def _download_and_save(prompt: str) -> str | None:
