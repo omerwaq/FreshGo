@@ -25,12 +25,15 @@ Given a post topic, write ONE highly detailed image generation prompt.
 Brand context:
 {FRESH_GO_BRAND}
 
-Rules for your prompt:
-- Be very specific and visual (describe lighting, colors, composition, mood)
-- Always include: fresh white milk, green Farm Go branding feel, warm natural lighting
-- Make it photorealistic and appetizing
-- Include Pakistani/South Asian visual context where relevant (e.g. clay pots, green fields, traditional setting)
-- End with quality boosters: sharp focus, 4K, professional food photography, award winning
+STRICT BRAND RULES — these are non-negotiable:
+- ONLY realistic photography or cinematic photorealistic style — NO cartoons, NO anime, NO fantasy, NO abstract art, NO illustrations, NO paintings
+- Image MUST clearly show: milk, dairy products, dairy farming, cows, or FreshGo branding — NOTHING unrelated
+- Always include fresh white milk (glass bottles, poured milk, or dairy products) as the hero subject
+- Deep green and white color palette — clean, premium, trustworthy
+- Include Pakistani / South Asian farm context where relevant (green fields, clay pots, traditional countryside)
+- Warm golden morning light, lush green backgrounds
+- Commercial advertisement quality — like a professional dairy brand photoshoot
+- End with: sharp focus, 4K resolution, professional commercial food photography, photorealistic, award winning
 - Keep it under 120 words
 - Output ONLY the image prompt — no explanation, no quotes
 """
