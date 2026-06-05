@@ -2,6 +2,8 @@ import requests
 import urllib.parse
 import os
 import uuid
+import time
+import random
 
 POLLINATIONS_URL = "https://image.pollinations.ai/prompt/{prompt}"
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "images")
@@ -66,6 +68,36 @@ def generate_image_prompt_via_ai(topic: str) -> str:
         )
 
 
+def _try_pollinations(prompt: str) -> str | None:
+    """Generate AI image via Pollinations (FLUX model) with retries."""
+    encoded = urllib.parse.quote(prompt, safe='')
+    for attempt in range(6):
+        seed = random.randint(1, 999999)
+        url = (
+            f"https://image.pollinations.ai/prompt/{encoded}"
+            f"?model=flux&width=1024&height=1024&nologo=true&seed={seed}"
+        )
+        print(f"[Image] Pollinations attempt {attempt+1}: seed={seed}")
+        try:
+            response = requests.get(url, timeout=120)
+            ctype = response.headers.get("content-type", "")
+            if response.status_code == 200 and "image" in ctype:
+                filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+                filepath = os.path.join(STATIC_DIR, filename)
+                with open(filepath, "wb") as f:
+                    f.write(response.content)
+                local_url = f"/static/images/{filename}"
+                print(f"[Image] Pollinations saved: {local_url}")
+                return local_url
+            else:
+                print(f"[Image] Pollinations {response.status_code} — retrying in 5s...")
+                time.sleep(5)
+        except Exception as e:
+            print(f"[Image] Pollinations error: {e} — retrying in 5s...")
+            time.sleep(5)
+    return None
+
+
 def _try_huggingface(prompt: str) -> str | None:
     """Generate AI image via Hugging Face Inference API (FLUX.1-schnell)."""
     from dotenv import load_dotenv
@@ -73,14 +105,11 @@ def _try_huggingface(prompt: str) -> str | None:
     hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
     if not hf_token:
         return None
-
     api_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {"inputs": prompt}
-
-    print(f"[Image] Trying Hugging Face FLUX.1-schnell...")
+    print(f"[Image] Trying HuggingFace FLUX.1-schnell...")
     try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+        response = requests.post(api_url, headers=headers, json={"inputs": prompt}, timeout=90)
         if response.status_code == 200 and response.headers.get("content-type", "").startswith("image"):
             filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
             filepath = os.path.join(STATIC_DIR, filename)
@@ -89,51 +118,17 @@ def _try_huggingface(prompt: str) -> str | None:
             local_url = f"/static/images/{filename}"
             print(f"[Image] HuggingFace saved: {local_url}")
             return local_url
-        else:
-            print(f"[Image] HuggingFace error {response.status_code}: {response.text[:200]}")
-            return None
+        print(f"[Image] HuggingFace error {response.status_code}: {response.text[:200]}")
+        return None
     except Exception as e:
         print(f"[Image] HuggingFace exception: {e}")
         return None
 
 
-def _try_loremflickr(prompt: str) -> str | None:
-    """Fallback: download a topic-relevant stock photo from LoremFlickr."""
-    prompt_lower = prompt.lower()
-    if "ghee" in prompt_lower or "butter" in prompt_lower:
-        keywords = "butter,ghee,dairy,farm"
-    elif "cow" in prompt_lower or "cattle" in prompt_lower:
-        keywords = "cow,cattle,farm,dairy"
-    elif "farm" in prompt_lower or "field" in prompt_lower:
-        keywords = "farm,field,green,countryside"
-    elif "delivery" in prompt_lower or "bottle" in prompt_lower:
-        keywords = "milk,bottle,dairy,fresh"
-    else:
-        keywords = "milk,dairy,cow,farm"
-
-    lock = uuid.uuid4().int % 10000
-    url = f"https://loremflickr.com/1024/1024/{keywords}?lock={lock}"
-    print(f"[Image] Fallback LoremFlickr ({keywords}): {url}")
-    try:
-        response = requests.get(url, timeout=30, stream=True, allow_redirects=True)
-        response.raise_for_status()
-        filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
-        filepath = os.path.join(STATIC_DIR, filename)
-        with open(filepath, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        local_url = f"/static/images/{filename}"
-        print(f"[Image] LoremFlickr saved: {local_url}")
-        return local_url
-    except Exception as e:
-        print(f"[Image] LoremFlickr failed: {e}")
-        return None
-
-
 def _download_and_save(prompt: str) -> str | None:
-    """Try HuggingFace AI generation first, fall back to LoremFlickr stock photos."""
+    """Try Pollinations AI first, then HuggingFace, no stock photo fallbacks."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    return _try_huggingface(prompt) or _try_loremflickr(prompt)
+    return _try_pollinations(prompt) or _try_huggingface(prompt)
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
