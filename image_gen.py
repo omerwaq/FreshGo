@@ -101,69 +101,57 @@ def _try_pollinations(prompt: str) -> str | None:
     return None
 
 
-def _try_huggingface(prompt: str) -> str | None:
-    """Generate AI image via HuggingFace — handles model cold-start retries."""
+def _try_together(prompt: str) -> str | None:
+    """Generate AI image via Together AI — FLUX.1-schnell-Free (no cost)."""
     from dotenv import load_dotenv
     load_dotenv()
-    hf_token = os.getenv("HUGGINGFACE_API_TOKEN")
-    if not hf_token:
-        print("[Image] No HUGGINGFACE_API_TOKEN set")
+    api_key = os.getenv("TOGETHER_API_KEY")
+    if not api_key:
+        print("[Image] No TOGETHER_API_KEY set")
         return None
 
-    models = [
-        "black-forest-labs/FLUX.1-schnell",
-        "stabilityai/stable-diffusion-xl-base-1.0",
-        "runwayml/stable-diffusion-v1-5",
-    ]
-    headers = {
-        "Authorization": f"Bearer {hf_token}",
-        "Accept": "image/jpeg",
-    }
-
-    for model in models:
-        print(f"[Image] Trying HuggingFace model: {model}")
-        for attempt in range(4):
-            try:
-                response = requests.post(
-                    f"https://router.huggingface.co/hf-inference/models/{model}",
-                    headers=headers,
-                    json={"inputs": prompt},
-                    timeout=120,
-                )
-                ctype = response.headers.get("content-type", "")
-                if response.status_code == 200 and "image" in ctype:
-                    filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
-                    filepath = os.path.join(STATIC_DIR, filename)
-                    with open(filepath, "wb") as f:
-                        f.write(response.content)
-                    local_url = f"/static/images/{filename}"
-                    print(f"[Image] HuggingFace saved ({model}): {local_url}")
-                    return local_url
-
-                # Model is loading — wait and retry
-                if response.status_code == 503:
-                    try:
-                        wait = response.json().get("estimated_time", 20)
-                    except Exception:
-                        wait = 20
-                    print(f"[Image] Model loading, waiting {wait}s...")
-                    time.sleep(min(wait + 5, 60))
-                    continue
-
-                print(f"[Image] HuggingFace {response.status_code}: {response.text[:300]}")
-                break  # non-503 error, try next model
-
-            except Exception as e:
-                print(f"[Image] HuggingFace exception ({model}): {e}")
-                time.sleep(5)
-
-    return None
+    print("[Image] Trying Together AI FLUX.1-schnell-Free...")
+    try:
+        response = requests.post(
+            "https://api.together.xyz/v1/images/generations",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "black-forest-labs/FLUX.1-schnell-Free",
+                "prompt": prompt,
+                "width": 1024,
+                "height": 1024,
+                "steps": 4,
+                "n": 1,
+                "response_format": "b64_json",
+            },
+            timeout=120,
+        )
+        if response.status_code == 200:
+            import base64
+            data = response.json()
+            b64 = data["data"][0]["b64_json"]
+            img_bytes = base64.b64decode(b64)
+            filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+            filepath = os.path.join(STATIC_DIR, filename)
+            with open(filepath, "wb") as f:
+                f.write(img_bytes)
+            local_url = f"/static/images/{filename}"
+            print(f"[Image] Together AI saved: {local_url}")
+            return local_url
+        print(f"[Image] Together AI {response.status_code}: {response.text[:300]}")
+        return None
+    except Exception as e:
+        print(f"[Image] Together AI exception: {e}")
+        return None
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Generate AI image via HuggingFace (Pollinations dropped — now paid for server-side)."""
+    """Generate AI image via Together AI (free FLUX model)."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    return _try_huggingface(prompt)
+    return _try_together(prompt)
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
