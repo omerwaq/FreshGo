@@ -149,7 +149,7 @@ def _try_together(prompt: str) -> str | None:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Generate AI image via Together AI (free FLUX model)."""
+    """Generate AI image via Together AI (free FLUX model). v2"""
     os.makedirs(STATIC_DIR, exist_ok=True)
     return _try_together(prompt)
 
