@@ -125,7 +125,7 @@ def _try_huggingface(prompt: str) -> str | None:
         for attempt in range(4):
             try:
                 response = requests.post(
-                    f"https://api-inference.huggingface.co/models/{model}",
+                    f"https://router.huggingface.co/hf-inference/models/{model}",
                     headers=headers,
                     json={"inputs": prompt},
                     timeout=120,
@@ -161,9 +161,9 @@ def _try_huggingface(prompt: str) -> str | None:
 
 
 def _download_and_save(prompt: str) -> str | None:
-    """Try HuggingFace first (token set in Railway), Pollinations as backup."""
+    """Generate AI image via HuggingFace (Pollinations dropped — now paid for server-side)."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    return _try_huggingface(prompt) or _try_pollinations(prompt)
+    return _try_huggingface(prompt)
 
 
 async def fetch_and_save_image(topic: str) -> str | None:
