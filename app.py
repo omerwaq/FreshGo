@@ -580,10 +580,11 @@ async def export_customers():
     ws.title = "Today's Customers"
 
     # Header row
-    headers = ["Order ID", "Customer Name", "Phone Number", "Product", "Quantity", "Address"]
+    headers = ["Order ID", "Customer Name", "Phone Number", "Product", "Quantity (Litres/KG)", "Address", "Amount (Rs)"]
     for col, h in enumerate(headers, 1):
         ws.cell(row=1, column=col, value=h)
         ws.cell(row=1, column=col).font = openpyxl.styles.Font(bold=True)
+        ws.cell(row=1, column=col).fill = openpyxl.styles.PatternFill("solid", fgColor="D1FAE5")
 
     # Data rows
     for row, c in enumerate(customers, 2):
@@ -593,6 +594,7 @@ async def export_customers():
         ws.cell(row=row, column=4, value=c.get("product", ""))
         ws.cell(row=row, column=5, value=c.get("quantity", ""))
         ws.cell(row=row, column=6, value=c.get("address", ""))
+        ws.cell(row=row, column=7, value=c.get("total_amount", ""))
 
     # Auto-width columns
     for col in ws.columns:
