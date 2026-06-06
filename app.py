@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -243,10 +244,21 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
         )})
 
     else:
-        # Pass natural language to AI so admin can have a conversation too
-        from ai_engine import get_ai_response
-        ai_reply = await get_ai_response("admin", text)
+        # Fully conversational admin AI — understands natural language and auto-generates posts
+        from ai_engine import admin_chat
+        ai_reply, post_topic = await asyncio.to_thread(admin_chat, text)
         replies.append({"type": "message", "text": ai_reply})
+
+        # Auto-generate post if AI detected post intent
+        if post_topic:
+            replies.append({"type": "message",
+                             "text": f'⏳ Generating post about "{post_topic}"...'})
+            result = await generate_post(post_topic)
+            set_pending_post(sender_id, {
+                "text": result["text"], "image_url": result["image_url"],
+                "video_url": None, "platform": "both"
+            })
+            _append_preview(replies, result["text"], result["image_url"])
 
     return replies
 

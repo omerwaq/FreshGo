@@ -91,6 +91,69 @@ def _post_text_only(topic: str) -> str:
     ).choices[0].message.content
 
 
+ADMIN_SYSTEM_PROMPT = """
+You are Fresh Go's smart social media manager AI. You work directly with the farm owner (admin) to create great posts together.
+
+Fresh Go brand:
+- Premium dairy farm from Nankana Sahib, Pakistan
+- Products: Pure cow milk (250 rs/litre), Desi Ghee, Fresh Curd
+- Delivers to all Lahore areas, 7am–5pm
+- WhatsApp: 0300-3147887
+- Brand colors: deep green and white
+- Values: pure, hormone-free, farm-fresh, Pakistani family values
+
+Your job:
+- Have a natural conversation with the admin in Roman Urdu + English mix
+- Help them brainstorm post ideas, suggest topics, improve captions
+- When the admin wants to create a post (they say things like "post banao", "create ad", "make a post about X", "image banao", "iska post banao"), include this EXACT marker in your response: [POST_GENERATE: <topic>]
+- The topic should be detailed enough for image generation (e.g. "morning fresh milk delivery Lahore 250rs per litre")
+- Ask follow-up questions to get better details before generating
+- Be friendly, creative, and help make posts that will attract customers
+
+Example:
+Admin: "doodh ki post banao morning delivery ke liye"
+You: "Zaroor! Morning delivery bohot popular hai. Koi special offer hai ya normal price 250rs/litre? [POST_GENERATE: fresh cow milk morning delivery Lahore, 250rs per litre, pure hormone-free]"
+
+Remember: ONLY include [POST_GENERATE: ...] when you are confident the admin wants to generate a post right now.
+"""
+
+ADMIN_HISTORY_KEY = "admin_conversation"
+
+
+def admin_chat(message: str) -> tuple[str, str | None]:
+    """
+    Chat with admin. Returns (reply_text, post_topic_or_None).
+    post_topic is extracted from [POST_GENERATE: topic] marker if present.
+    """
+    hist = _get_history(ADMIN_HISTORY_KEY, "admin")
+    messages = (
+        [{"role": "system", "content": ADMIN_SYSTEM_PROMPT}]
+        + hist
+        + [{"role": "user", "content": message}]
+    )
+    try:
+        response = client.chat.completions.create(
+            model=MODEL, messages=messages, max_tokens=400, temperature=0.8,
+        )
+        reply = response.choices[0].message.content.strip()
+
+        # Extract [POST_GENERATE: topic] marker if present
+        post_topic = None
+        if "[POST_GENERATE:" in reply:
+            import re
+            match = re.search(r'\[POST_GENERATE:\s*(.+?)\]', reply)
+            if match:
+                post_topic = match.group(1).strip()
+            # Remove the marker from the visible reply
+            reply = re.sub(r'\[POST_GENERATE:[^\]]*\]', '', reply).strip()
+
+        _save_history(ADMIN_HISTORY_KEY, message, reply, "admin")
+        return reply, post_topic
+    except Exception as e:
+        print(f"[Admin Chat Error] {e}")
+        return "Maafi, technical masla aa gaya. Dobara try karen.", None
+
+
 async def generate_post(topic: str) -> dict:
     """
     Async: generate post text (Groq) + image (Pollinations) concurrently.
