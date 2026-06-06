@@ -331,16 +331,43 @@ tr:hover td{background:#f9fdf9;}
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────── */
 @media(max-width:900px){
-  .sidebar{display:none;}
+  .sidebar{
+    display:flex;
+    position:fixed;
+    left:-260px;
+    top:0;bottom:0;
+    z-index:1000;
+    transition:left .25s ease;
+    box-shadow:4px 0 20px rgba(0,0,0,.3);
+  }
+  .sidebar.open{left:0;}
+  .mobile-overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.5);
+    z-index:999;
+  }
+  .mobile-overlay.open{display:block;}
+  .hamburger{
+    display:flex;
+    align-items:center;justify-content:center;
+    width:38px;height:38px;
+    background:rgba(255,255,255,.15);
+    border:none;border-radius:8px;
+    cursor:pointer;color:#fff;font-size:20px;
+    margin-right:8px;
+  }
   .stats-grid{grid-template-columns:repeat(3,1fr);}
 }
 </style>
 </head>
 <body>
+<div class="mobile-overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
+
 <div class="shell">
 
 <!-- ── SIDEBAR ─────────────────────────────────────────────────────── -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sb-brand">
     <div class="sb-logo">🐄</div>
     <div class="sb-brand-text">
@@ -400,6 +427,7 @@ tr:hover td{background:#f9fdf9;}
 
   <!-- Top bar -->
   <div class="topbar">
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()" style="display:none;">☰</button>
     <div class="topbar-title" id="page-title">📦 Orders</div>
     <div class="topbar-right">
       <span class="topbar-time" id="live-time"></span>
@@ -668,6 +696,31 @@ Sawaal: 0300-3147887</div>
 <div class="toast" id="toast"></div>
 
 <script>
+// ── Mobile sidebar ────────────────────────────────────────────────────────
+function isMobile(){ return window.innerWidth <= 900; }
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('mobileOverlay').classList.toggle('open');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mobileOverlay').classList.remove('open');
+}
+function setupMobile(){
+  const hb = document.getElementById('hamburger');
+  if(isMobile()){
+    hb.style.display = 'flex';
+  } else {
+    hb.style.display = 'none';
+    closeSidebar();
+  }
+}
+window.addEventListener('resize', setupMobile);
+window.addEventListener('load', setupMobile);
+
+// Close sidebar when a tab is clicked on mobile
+const _origShowTab = typeof showTab !== 'undefined' ? showTab : null;
+
 // ── State ──────────────────────────────────────────────────────────────────
 let allOrders = [], curFilter = 'all';
 
@@ -703,6 +756,7 @@ function showTab(name, sbEl){
   document.getElementById('page-title').textContent = TABS[name];
   if(name==='scheduled') loadScheduled();
   if(name==='whatsapp') loadBulkCustomers();
+  if(isMobile()) closeSidebar();
 }
 
 // ── WhatsApp Bulk ──────────────────────────────────────────────────────────
