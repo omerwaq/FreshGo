@@ -125,15 +125,29 @@ def _try_together(prompt: str) -> str | None:
                 "height": 1024,
                 "steps": 4,
                 "n": 1,
-                "response_format": "b64_json",
             },
             timeout=120,
         )
+        print(f"[Image] Together AI response {response.status_code}: {response.text[:500]}")
         if response.status_code == 200:
             import base64
             data = response.json()
-            b64 = data["data"][0]["b64_json"]
-            img_bytes = base64.b64decode(b64)
+            item = data["data"][0]
+
+            # Handle URL response
+            if "url" in item:
+                img_url = item["url"]
+                print(f"[Image] Together AI returned URL: {img_url}")
+                img_response = requests.get(img_url, timeout=60)
+                img_response.raise_for_status()
+                img_bytes = img_response.content
+            # Handle base64 response
+            elif "b64_json" in item:
+                img_bytes = base64.b64decode(item["b64_json"])
+            else:
+                print(f"[Image] Together AI unknown response format: {item.keys()}")
+                return None
+
             filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
             filepath = os.path.join(STATIC_DIR, filename)
             with open(filepath, "wb") as f:
@@ -141,7 +155,6 @@ def _try_together(prompt: str) -> str | None:
             local_url = f"/static/images/{filename}"
             print(f"[Image] Together AI saved: {local_url}")
             return local_url
-        print(f"[Image] Together AI {response.status_code}: {response.text[:300]}")
         return None
     except Exception as e:
         print(f"[Image] Together AI exception: {e}")
