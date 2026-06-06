@@ -562,8 +562,19 @@ tr:hover td{background:#f9fdf9;}
           </div>
 
           <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
-            <div style="font-weight:700;color:#92400e;margin-bottom:6px;">Custom Message (Optional)</div>
-            <textarea id="bulk-message" placeholder="Leave empty to use default delivery confirmation..." style="width:100%;min-height:70px;border:1px solid #d1d5db;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+            <div style="font-weight:700;color:#92400e;margin-bottom:10px;">✏️ Message Likhein (Custom)</div>
+
+            <!-- Quick templates -->
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+              <button onclick="setTemplate('delivery')" style="background:#f0fdf4;border:1px solid #86efac;border-radius:20px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-weight:600;color:#065f46;">✅ Delivery Ho Gayi</button>
+              <button onclick="setTemplate('nodelivery')" style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-weight:600;color:#991b1b;">❌ Aaj Doodh Nahi</button>
+              <button onclick="setTemplate('price')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-weight:600;color:#1e40af;">💰 Price Change</button>
+              <button onclick="setTemplate('bill')" style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:20px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-weight:600;color:#6b21a8;">🧾 Bill Payment</button>
+              <button onclick="setTemplate('holiday')" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-weight:600;color:#9a3412;">🎉 Holiday</button>
+            </div>
+
+            <textarea id="bulk-message" placeholder="Yahan apna message likhein... ya upar se template choose karen" style="width:100%;min-height:90px;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">[Name] likhne se customer ka naam automatically aayega</div>
           </div>
 
           <div id="bulk-result" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px 18px;">
@@ -646,6 +657,19 @@ function showTab(name, sbEl){
 
 // ── WhatsApp Bulk ──────────────────────────────────────────────────────────
 let bulkCustomers = [];
+
+const MSG_TEMPLATES = {
+  delivery: `Assalam o Alaikum [Name] bhai/behen! 🌿\n\nAaj aapka Fresh Go doodh deliver ho gaya hai. 100% pure, hormone-free cow milk — Nankana Sahib Farm se seedha aapke ghar tak. 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nKoi sawaal ho: 0300-3147887`,
+  nodelivery: `Assalam o Alaikum [Name] bhai/behen! 🙏\n\nAaj kisi majboori ki wajah se doodh deliver nahi ho payega. Hum maafi chahte hain.\n\nKal inshallah normal time par delivery hogi. Meherbani farmaiye. 🐄\n— Fresh Go: 0300-3147887`,
+  price: `Assalam o Alaikum [Name] bhai/behen! 📢\n\nHum aapko inform karna chahte hain ke ab se doodh ki nai price [PRICE] rupay per litre hogi.\n\nAapki sahuliyat ke liye hum pehle se inform kar rahe hain. Shukriya aapke trust ke liye! 🐄\n— Fresh Go: 0300-3147887`,
+  bill: `Assalam o Alaikum [Name] bhai/behen! 🧾\n\nAapka Fresh Go ka total bill [AMOUNT] rupay hai ([DATE] tak ka).\n\nMeherbani karke jaldi payment kar dein. JazzCash/EasyPaisa: 0300-3147887\n\nShukriya! 🐄 — Fresh Go`,
+  holiday: `Assalam o Alaikum [Name] bhai/behen! 🎉\n\n[HOLIDAY] ki wajah se [DATE] ko doodh delivery band rahegi.\n\nAglay din se normal delivery shuru ho jayegi. Shukriya aapki samajh ke liye! 🐄\n— Fresh Go: 0300-3147887`,
+};
+
+function setTemplate(key){
+  document.getElementById('bulk-message').value = MSG_TEMPLATES[key];
+  document.getElementById('bulk-message').focus();
+}
 
 async function downloadCustomers(){
   window.open('/api/export-customers', '_blank');
