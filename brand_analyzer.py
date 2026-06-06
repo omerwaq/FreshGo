@@ -17,54 +17,59 @@ FB_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
 def _get_page_images(limit: int = 6) -> list[str]:
     """Fetch recent post image URLs from the Facebook page."""
     urls = []
-    try:
-        # Get recent posts with attachments
-        resp = requests.get(
-            f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/posts",
-            params={
-                "fields": "attachments{media,type}",
-                "limit": 20,
-                "access_token": FB_TOKEN,
-            },
-            timeout=15,
-        )
-        data = resp.json()
-        for post in data.get("data", []):
-            attachments = post.get("attachments", {}).get("data", [])
-            for att in attachments:
-                media = att.get("media", {})
-                img = media.get("image", {})
-                url = img.get("src")
-                if url:
-                    urls.append(url)
-                if len(urls) >= limit:
-                    break
-            if len(urls) >= limit:
-                break
-    except Exception as e:
-        print(f"[Brand] Error fetching FB posts: {e}")
 
-    # Also get page profile/cover photos
+    # Try page profile picture and cover (always accessible with any valid token)
     try:
         resp = requests.get(
             f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}",
-            params={
-                "fields": "picture.type(large),cover",
-                "access_token": FB_TOKEN,
-            },
+            params={"fields": "picture.type(large),cover", "access_token": FB_TOKEN},
             timeout=10,
         )
         data = resp.json()
+        print(f"[Brand] Page info response: {data}")
         pic = data.get("picture", {}).get("data", {}).get("url")
         cover = data.get("cover", {}).get("source")
-        if pic:
-            urls.insert(0, pic)
-        if cover:
-            urls.insert(0, cover)
+        if cover: urls.append(cover)
+        if pic:   urls.append(pic)
     except Exception as e:
-        print(f"[Brand] Error fetching page photos: {e}")
+        print(f"[Brand] Page info error: {e}")
 
-    return urls[:limit]
+    # Try photos uploaded by the page
+    try:
+        resp = requests.get(
+            f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/photos",
+            params={"type": "uploaded", "fields": "images", "limit": 10, "access_token": FB_TOKEN},
+            timeout=15,
+        )
+        data = resp.json()
+        print(f"[Brand] Photos response: {str(data)[:300]}")
+        for photo in data.get("data", []):
+            images = photo.get("images", [])
+            if images:
+                url = images[0].get("source")
+                if url: urls.append(url)
+            if len(urls) >= limit: break
+    except Exception as e:
+        print(f"[Brand] Photos error: {e}")
+
+    # Try posts with media
+    try:
+        resp = requests.get(
+            f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/posts",
+            params={"fields": "full_picture", "limit": 15, "access_token": FB_TOKEN},
+            timeout=15,
+        )
+        data = resp.json()
+        print(f"[Brand] Posts response: {str(data)[:300]}")
+        for post in data.get("data", []):
+            url = post.get("full_picture")
+            if url: urls.append(url)
+            if len(urls) >= limit: break
+    except Exception as e:
+        print(f"[Brand] Posts error: {e}")
+
+    print(f"[Brand] Total images found: {len(urls)}")
+    return list(dict.fromkeys(urls))[:limit]  # deduplicate
 
 
 def _analyze_images_with_vision(image_urls: list[str]) -> str:
@@ -162,6 +167,21 @@ def analyze_facebook_page(page_url: str = None) -> dict:
 
     return {"success": False, "profile": "", "images_analyzed": 0,
             "message": "Vision analysis failed. Try again."}
+
+
+def analyze_uploaded_images(image_data_urls: list[str]) -> dict:
+    """Analyze brand style from admin-uploaded images (base64 data URLs)."""
+    brand_profile = _analyze_images_with_vision(image_data_urls)
+    if brand_profile:
+        profile_data = {
+            "brand_profile": brand_profile,
+            "images_analyzed": len(image_data_urls),
+            "source": "manual_upload",
+        }
+        with open(BRAND_PROFILE_PATH, "w") as f:
+            json.dump(profile_data, f, indent=2)
+        return {"success": True, "profile": brand_profile, "images_analyzed": len(image_data_urls)}
+    return {"success": False, "profile": "", "images_analyzed": 0}
 
 
 def load_brand_profile() -> str:

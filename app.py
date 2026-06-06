@@ -524,11 +524,28 @@ async def local_chat(request: Request):
     if not message and not image_data:
         return JSONResponse(status_code=400, content={"error": "Message required"})
 
-    # If image attached in admin mode, analyze it and prepend context
+    # If image attached in admin mode
     if admin_mode and image_data:
-        from ai_engine import analyze_reference_image
-        analysis = await asyncio.to_thread(analyze_reference_image, image_data)
-        message = f"[Reference image analysis: {analysis}]\n\nAdmin request: {message or 'isi style mein Fresh Go ki ad banao'}"
+        save_keywords = {"brand", "style", "save", "profile", "apni", "meri", "yahi", "isi tarah", "learn"}
+        is_save_brand = any(k in (message or "").lower() for k in save_keywords)
+
+        if is_save_brand:
+            # Save as brand profile
+            from brand_analyzer import analyze_uploaded_images
+            result = await asyncio.to_thread(analyze_uploaded_images, [image_data])
+            if result["success"]:
+                return {"replies": [{"type": "message", "text": (
+                    f"✅ Brand profile saved from your uploaded image!\n\n"
+                    f"📋 Your brand style:\n{result['profile']}\n\n"
+                    "Ab se saari generated images is style ko follow karengi! 🎨"
+                )}]}
+            else:
+                return {"replies": [{"type": "message", "text": "⚠️ Image analyze nahi ho saki. Dobara try karo."}]}
+        else:
+            # Use as reference for this post only
+            from ai_engine import analyze_reference_image
+            analysis = await asyncio.to_thread(analyze_reference_image, image_data)
+            message = f"[Reference image analysis: {analysis}]\n\nAdmin request: {message or 'isi style mein Fresh Go ki ad banao'}"
 
     if admin_mode:
         replies = await process_admin(sender_id, message, local_mode=True)
