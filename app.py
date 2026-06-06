@@ -503,10 +503,17 @@ async def local_chat(request: Request):
     data       = await request.json()
     message    = data.get("message", "").strip()
     admin_mode = data.get("is_admin", False)
+    image_data = data.get("image_data")  # base64 data URL from frontend
     sender_id  = "admin_test" if admin_mode else "customer_test"
 
-    if not message:
+    if not message and not image_data:
         return JSONResponse(status_code=400, content={"error": "Message required"})
+
+    # If image attached in admin mode, analyze it and prepend context
+    if admin_mode and image_data:
+        from ai_engine import analyze_reference_image
+        analysis = await asyncio.to_thread(analyze_reference_image, image_data)
+        message = f"[Reference image analysis: {analysis}]\n\nAdmin request: {message or 'isi style mein Fresh Go ki ad banao'}"
 
     if admin_mode:
         replies = await process_admin(sender_id, message, local_mode=True)

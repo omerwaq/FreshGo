@@ -154,6 +154,43 @@ def admin_chat(message: str) -> tuple[str, str | None]:
         return "Maafi, technical masla aa gaya. Dobara try karen.", None
 
 
+def analyze_reference_image(image_data_url: str) -> str:
+    """Use Groq vision to analyze a reference image and describe its style for replication."""
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data_url}
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Analyze this image for a dairy brand ad recreation. Describe in detail: "
+                            "1) Photography style (studio/outdoor/lifestyle) "
+                            "2) Lighting (soft/harsh/golden hour/studio) "
+                            "3) Color palette and mood "
+                            "4) Composition and layout "
+                            "5) Subject placement "
+                            "6) Overall visual style and quality "
+                            "Keep it under 100 words, focused on recreating this style for a milk/dairy product."
+                        )
+                    }
+                ]
+            }],
+            max_tokens=200,
+        )
+        analysis = response.choices[0].message.content.strip()
+        print(f"[Vision Analysis] {analysis}")
+        return analysis
+    except Exception as e:
+        print(f"[Vision Error] {e}")
+        return "professional dairy product photography, clean background, warm lighting, high quality"
+
+
 async def generate_post(topic: str) -> dict:
     """
     Async: generate post text (Groq) + image (Pollinations) concurrently.
