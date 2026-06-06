@@ -243,8 +243,10 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
         )})
 
     else:
-        replies.append({"type": "message",
-                         "text": "Unknown command. Type !help to see available commands."})
+        # Pass natural language to AI so admin can have a conversation too
+        from ai_engine import get_ai_response
+        ai_reply = await get_ai_response("admin", text)
+        replies.append({"type": "message", "text": ai_reply})
 
     return replies
 
