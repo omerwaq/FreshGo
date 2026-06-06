@@ -700,16 +700,22 @@ async def favicon():
     return Response(content=svg, media_type="image/svg+xml")
 
 
+NO_CACHE = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_chat():
     with open(os.path.join(BASE_DIR, "chat.html")) as f:
-        return f.read()
+        return HTMLResponse(content=f.read(), headers=NO_CACHE)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def serve_dashboard():
     with open(os.path.join(BASE_DIR, "dashboard.html")) as f:
-        return f.read()
+        return HTMLResponse(content=f.read(), headers=NO_CACHE)
 
 
 @app.get("/health")
