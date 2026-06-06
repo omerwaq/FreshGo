@@ -246,8 +246,23 @@ async def process_admin(sender_id: str, text: str, local_mode: bool = False) -> 
     else:
         # Fully conversational admin AI — understands natural language and auto-generates posts
         from ai_engine import admin_chat
-        ai_reply, post_topic = await asyncio.to_thread(admin_chat, text)
+        ai_reply, post_topic, analyze_url = await asyncio.to_thread(admin_chat, text)
         replies.append({"type": "message", "text": ai_reply})
+
+        # Auto-analyze Facebook brand page if URL detected
+        if analyze_url:
+            replies.append({"type": "message",
+                             "text": "🔍 Analyzing your Facebook page style... (30-60 seconds)"})
+            from brand_analyzer import analyze_facebook_page
+            result = await asyncio.to_thread(analyze_facebook_page, analyze_url)
+            if result["success"]:
+                replies.append({"type": "message", "text": (
+                    f"✅ Brand profile saved! Analyzed {result['images_analyzed']} images.\n\n"
+                    f"📋 Your brand style:\n{result['profile']}\n\n"
+                    "Ab se saari generated images is style ko follow karengi! 🎨"
+                )})
+            else:
+                replies.append({"type": "message", "text": f"⚠️ {result['message']}"})
 
         # Auto-generate post if AI detected post intent
         if post_topic:

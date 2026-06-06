@@ -44,11 +44,19 @@ def generate_image_prompt_via_ai(topic: str) -> str:
         from dotenv import load_dotenv
         load_dotenv()
 
+        # Load saved brand profile if available
+        try:
+            from brand_analyzer import load_brand_profile
+            brand_profile = load_brand_profile()
+            brand_context = f"\n\nSAVED BRAND PROFILE (from Facebook page analysis — follow this closely):\n{brand_profile}" if brand_profile else ""
+        except Exception:
+            brand_context = ""
+
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": IMAGE_SYSTEM_PROMPT},
+                {"role": "system", "content": IMAGE_SYSTEM_PROMPT + brand_context},
                 {"role": "user", "content": f"Post topic: {topic}"}
             ],
             max_tokens=180,

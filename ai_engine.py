@@ -115,6 +115,8 @@ Admin: "doodh ki post banao morning delivery ke liye"
 You: "Zaroor! Morning delivery bohot popular hai. Koi special offer hai ya normal price 250rs/litre? [POST_GENERATE: fresh cow milk morning delivery Lahore, 250rs per litre, pure hormone-free]"
 
 Remember: ONLY include [POST_GENERATE: ...] when you are confident the admin wants to generate a post right now.
+
+When the admin shares a Facebook page URL or asks to analyze their page/brand, include this marker: [ANALYZE_BRAND: <url>]
 """
 
 ADMIN_HISTORY_KEY = "admin_conversation"
@@ -137,21 +139,32 @@ def admin_chat(message: str) -> tuple[str, str | None]:
         )
         reply = response.choices[0].message.content.strip()
 
-        # Extract [POST_GENERATE: topic] marker if present
+        import re
         post_topic = None
+        analyze_url = None
+
         if "[POST_GENERATE:" in reply:
-            import re
             match = re.search(r'\[POST_GENERATE:\s*(.+?)\]', reply)
             if match:
                 post_topic = match.group(1).strip()
-            # Remove the marker from the visible reply
             reply = re.sub(r'\[POST_GENERATE:[^\]]*\]', '', reply).strip()
 
+        if "[ANALYZE_BRAND:" in reply:
+            match = re.search(r'\[ANALYZE_BRAND:\s*(.+?)\]', reply)
+            if match:
+                analyze_url = match.group(1).strip()
+            reply = re.sub(r'\[ANALYZE_BRAND:[^\]]*\]', '', reply).strip()
+
+        # Also detect FB URL directly in message even if AI didn't catch it
+        if not analyze_url and ("facebook.com" in message or "fb.com" in message):
+            url_match = re.search(r'https?://\S+', message)
+            analyze_url = url_match.group(0) if url_match else "facebook_page"
+
         _save_history(ADMIN_HISTORY_KEY, message, reply, "admin")
-        return reply, post_topic
+        return reply, post_topic, analyze_url
     except Exception as e:
         print(f"[Admin Chat Error] {e}")
-        return "Maafi, technical masla aa gaya. Dobara try karen.", None
+        return "Maafi, technical masla aa gaya. Dobara try karen.", None, None
 
 
 def analyze_reference_image(image_data_url: str) -> str:
