@@ -401,7 +401,8 @@ async def verify_whatsapp(
                                         hub_challenge or "")
     if challenge:
         print("[WhatsApp Webhook] Verified ✅")
-        return int(challenge)
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=str(challenge))
     return JSONResponse(status_code=403, content={"error": "Verification failed"})
 
 
