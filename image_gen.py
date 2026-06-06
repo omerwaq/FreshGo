@@ -224,38 +224,18 @@ def _make_product_ad(product_image_path: str, prompt: str) -> str | None:
         return None
 
 
-def _download_and_save(prompt: str, product_image=None) -> str | None:
-    """Generate AI image. If product_image provided, composite real packet onto AI background."""
+def _download_and_save(prompt: str) -> str | None:
+    """Generate AI image via Together AI."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    if product_image:
-        result = _make_product_ad(product_image, prompt)
-        if result:
-            return result
     return _try_together(prompt)
 
 
-async def fetch_and_save_image(topic: str, product_image=None) -> str | None:
-    """
-    Async: generate smart prompt via Groq, then generate image.
-    If product_image (base64) provided, composites real packet onto AI background.
-    If brand_profile has a saved product image, uses that automatically.
-    """
+async def fetch_and_save_image(topic: str) -> str | None:
+    """Async: generate smart prompt via Groq, then generate image via Together AI."""
     try:
-        prompt = generate_image_prompt_via_ai(topic)
         import asyncio
-
-        # Auto-use saved brand product image if no explicit one given
-        if not product_image:
-            try:
-                import json
-                if os.path.exists(BRAND_PROFILE_PATH := os.path.join(os.path.dirname(__file__), "brand_profile.json")):
-                    with open(BRAND_PROFILE_PATH) as f:
-                        bp = json.load(f)
-                    product_image = bp.get("product_image")
-            except Exception:
-                pass
-
-        local_url = await asyncio.to_thread(_download_and_save, prompt, product_image)
+        prompt = generate_image_prompt_via_ai(topic)
+        local_url = await asyncio.to_thread(_download_and_save, prompt)
         return local_url
     except Exception as e:
         print(f"[Image Error] {e}")
