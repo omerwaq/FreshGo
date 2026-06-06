@@ -167,22 +167,95 @@ def _try_together(prompt: str) -> str | None:
         return None
 
 
-def _download_and_save(prompt: str) -> str | None:
-    """Generate AI image via Together AI (free FLUX model). v2"""
+def _make_product_ad(product_image_path: str, prompt: str) -> str | None:
+    """
+    Composite the real product image onto an AI-generated background using Pillow.
+    This ensures the REAL packet always appears in the ad.
+    """
+    try:
+        from PIL import Image, ImageFilter, ImageEnhance
+        import base64, io
+
+        os.makedirs(STATIC_DIR, exist_ok=True)
+
+        # Load product image
+        if product_image_path.startswith("data:"):
+            img_data = product_image_path.split(",", 1)[1]
+            product_img = Image.open(io.BytesIO(base64.b64decode(img_data))).convert("RGBA")
+        else:
+            product_img = Image.open(product_image_path).convert("RGBA")
+
+        # Generate AI background
+        bg_prompt = prompt + ", clean studio background, soft gradient, no products, no text, bokeh background"
+        bg_path = _try_together(bg_prompt)
+        if not bg_path:
+            return None
+
+        bg_full = os.path.join(os.path.dirname(__file__), bg_path.lstrip("/"))
+        background = Image.open(bg_full).convert("RGBA").resize((1024, 1024))
+
+        # Resize product to fit nicely (60% of canvas height, centered)
+        max_h = int(1024 * 0.65)
+        ratio = max_h / product_img.height
+        new_w = int(product_img.width * ratio)
+        product_resized = product_img.resize((new_w, max_h), Image.LANCZOS)
+
+        # Add subtle drop shadow
+        shadow = Image.new("RGBA", (new_w + 30, max_h + 30), (0, 0, 0, 0))
+        shadow_layer = Image.new("RGBA", (new_w, max_h), (0, 0, 0, 80))
+        shadow.paste(shadow_layer, (15, 15))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(12))
+
+        # Center-bottom placement
+        x = (1024 - new_w) // 2
+        y = 1024 - max_h - 60
+        background.paste(shadow, (x - 15, y - 15), shadow)
+        background.paste(product_resized, (x, y), product_resized)
+
+        # Save composite
+        filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(STATIC_DIR, filename)
+        background.convert("RGB").save(filepath, "JPEG", quality=92)
+        print(f"[Image] Product composite saved: /static/images/{filename}")
+        return f"/static/images/{filename}"
+
+    except Exception as e:
+        print(f"[Image] Composite error: {e}")
+        return None
+
+
+def _download_and_save(prompt: str, product_image=None) -> str | None:
+    """Generate AI image. If product_image provided, composite real packet onto AI background."""
     os.makedirs(STATIC_DIR, exist_ok=True)
+    if product_image:
+        result = _make_product_ad(product_image, prompt)
+        if result:
+            return result
     return _try_together(prompt)
 
 
-async def fetch_and_save_image(topic: str) -> str | None:
+async def fetch_and_save_image(topic: str, product_image=None) -> str | None:
     """
-    Async: generate smart prompt via Groq, then download image in a thread.
-    Server stays responsive while image downloads (no blocking).
+    Async: generate smart prompt via Groq, then generate image.
+    If product_image (base64) provided, composites real packet onto AI background.
+    If brand_profile has a saved product image, uses that automatically.
     """
     try:
         prompt = generate_image_prompt_via_ai(topic)
-        # Run blocking download in thread pool — doesn't freeze the server
         import asyncio
-        local_url = await asyncio.to_thread(_download_and_save, prompt)
+
+        # Auto-use saved brand product image if no explicit one given
+        if not product_image:
+            try:
+                import json
+                if os.path.exists(BRAND_PROFILE_PATH := os.path.join(os.path.dirname(__file__), "brand_profile.json")):
+                    with open(BRAND_PROFILE_PATH) as f:
+                        bp = json.load(f)
+                    product_image = bp.get("product_image")
+            except Exception:
+                pass
+
+        local_url = await asyncio.to_thread(_download_and_save, prompt, product_image)
         return local_url
     except Exception as e:
         print(f"[Image Error] {e}")

@@ -177,6 +177,7 @@ def analyze_uploaded_images(image_data_urls: list[str]) -> dict:
             "brand_profile": brand_profile,
             "images_analyzed": len(image_data_urls),
             "source": "manual_upload",
+            "product_image": image_data_urls[0] if image_data_urls else None,
         }
         with open(BRAND_PROFILE_PATH, "w") as f:
             json.dump(profile_data, f, indent=2)
