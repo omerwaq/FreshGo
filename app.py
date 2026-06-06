@@ -560,6 +560,12 @@ async def local_chat(request: Request):
 # WhatsApp Bulk Messaging
 # ─────────────────────────────────────────────────────────────────────────────
 
+@app.get("/api/todays-customers")
+async def todays_customers():
+    customers = get_todays_customers()
+    return {"customers": customers}
+
+
 @app.get("/api/export-customers")
 async def export_customers():
     """Download today's customers as Excel file."""

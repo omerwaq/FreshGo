@@ -570,8 +570,25 @@ tr:hover td{background:#f9fdf9;}
             <div id="bulk-result-text" style="font-size:14px;font-weight:600;color:#065f46;"></div>
           </div>
 
+          <!-- Customer list -->
+          <div style="margin-top:20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-weight:700;color:#1e293b;font-size:14px;">📋 Today's Customers</div>
+              <button onclick="loadBulkCustomers()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600;">↻ Refresh</button>
+            </div>
+            <div id="bulk-customer-list" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;"></div>
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+              <button onclick="sendAllWhatsApp()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">
+                📲 Send WhatsApp to All
+              </button>
+              <button onclick="copyAllNumbers()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+                📋 Copy All Numbers
+              </button>
+            </div>
+          </div>
+
           <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;border:1px solid #e2e8f0;margin-top:16px;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DEFAULT MESSAGE</div>
+            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DEFAULT MESSAGE (edit above to customize)</div>
             <div style="font-size:13px;color:#374151;white-space:pre-line;">Assalam o Alaikum [Name]! 🌿
 
 Aaj aapka Fresh Go doodh deliver ho gaya. 100% pure, hormone-free cow milk 🐄
@@ -624,11 +641,74 @@ function showTab(name, sbEl){
   if(sbEl) sbEl.classList.add('active');
   document.getElementById('page-title').textContent = TABS[name];
   if(name==='scheduled') loadScheduled();
+  if(name==='whatsapp') loadBulkCustomers();
 }
 
 // ── WhatsApp Bulk ──────────────────────────────────────────────────────────
+let bulkCustomers = [];
+
 async function downloadCustomers(){
   window.open('/api/export-customers', '_blank');
+}
+
+async function loadBulkCustomers(){
+  const box = document.getElementById('bulk-customer-list');
+  box.innerHTML = '<div style="padding:14px 16px;color:#64748b;font-size:13px;">Loading...</div>';
+  try {
+    const res = await fetch('/api/todays-customers');
+    const data = await res.json();
+    bulkCustomers = data.customers || [];
+    if(!bulkCustomers.length){
+      box.innerHTML = '<div style="padding:14px 16px;color:#64748b;font-size:13px;">Aaj koi orders nahi hain.</div>';
+      return;
+    }
+    box.innerHTML = bulkCustomers.map((c,i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:${i%2?'#f8fafc':'#fff'}">
+        <input type="checkbox" id="chk_${i}" checked style="width:16px;height:16px;cursor:pointer;accent-color:#25d366;"/>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;color:#1e293b;">${c.name||'Customer'}</div>
+          <div style="font-size:12px;color:#64748b;">${c.phone||'—'} · ${c.product||''} ${c.quantity||''}</div>
+        </div>
+        ${c.phone ? `<a href="${waLink(c)}" target="_blank"
+          style="background:#25d366;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
+          Send ↗
+        </a>` : '<span style="font-size:11px;color:#ef4444;">No phone</span>'}
+      </div>`).join('');
+  } catch(e){
+    box.innerHTML = '<div style="padding:14px 16px;color:#ef4444;font-size:13px;">Error loading customers.</div>';
+  }
+}
+
+function waLink(c){
+  const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'92');
+  const msg = (document.getElementById('bulk-message').value.trim()) ||
+    `Assalam o Alaikum ${c.name||''}! 🌿\n\nAaj aapka Fresh Go doodh deliver ho gaya. 100% pure, hormone-free cow milk 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nSawaal: 0300-3147887`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+function sendAllWhatsApp(){
+  let count = 0;
+  bulkCustomers.forEach((c, i) => {
+    const chk = document.getElementById('chk_'+i);
+    if(chk && chk.checked && c.phone){
+      setTimeout(() => window.open(waLink(c), '_blank'), count * 800);
+      count++;
+    }
+  });
+  if(count === 0){
+    alert('Koi number nahi mila. Pehle Excel download karo aur phone numbers add karo.');
+  } else {
+    toast(`📲 ${count} WhatsApp tabs open ho rahay hain...`);
+  }
+}
+
+function copyAllNumbers(){
+  const nums = bulkCustomers
+    .filter(c => c.phone)
+    .map(c => c.phone.replace(/\D/g,'').replace(/^0/,'0'))
+    .join('\n');
+  if(!nums){ alert('Koi phone numbers nahi hain.'); return; }
+  navigator.clipboard.writeText(nums).then(() => toast('📋 Numbers copied! WhatsApp Broadcast mein paste karo.'));
 }
 
 async function uploadAndSend(input){
