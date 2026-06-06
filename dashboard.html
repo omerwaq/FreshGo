@@ -6,6 +6,7 @@
 <title>Fresh Go — Admin Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐄</text></svg>"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -721,25 +722,31 @@ async function loadBulkCustomers(){
     const res = await fetch('/api/todays-customers');
     const data = await res.json();
     bulkCustomers = data.customers || [];
-    if(!bulkCustomers.length){
-      box.innerHTML = '<div style="padding:14px 16px;color:#64748b;font-size:13px;">Aaj koi orders nahi hain.</div>';
-      return;
-    }
-    box.innerHTML = bulkCustomers.map((c,i) => `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:${i%2?'#f8fafc':'#fff'}">
-        <input type="checkbox" id="chk_${i}" checked style="width:16px;height:16px;cursor:pointer;accent-color:#25d366;"/>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13px;color:#1e293b;">${c.name||'Customer'}</div>
-          <div style="font-size:12px;color:#64748b;">${c.phone||'—'} · ${c.product||''} ${c.quantity||''}</div>
-        </div>
-        ${c.phone ? `<a href="${waLink(c)}" target="_blank"
-          style="background:#25d366;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
-          Send ↗
-        </a>` : '<span style="font-size:11px;color:#ef4444;">No phone</span>'}
-      </div>`).join('');
+    renderBulkList();
   } catch(e){
-    box.innerHTML = '<div style="padding:14px 16px;color:#ef4444;font-size:13px;">Error loading customers.</div>';
+    document.getElementById('bulk-customer-list').innerHTML =
+      '<div style="padding:14px 16px;color:#ef4444;font-size:13px;">Error loading customers.</div>';
   }
+}
+
+function renderBulkList(){
+  const box = document.getElementById('bulk-customer-list');
+  if(!bulkCustomers.length){
+    box.innerHTML = '<div style="padding:14px 16px;color:#64748b;font-size:13px;">Aaj koi customers nahi — ya Excel upload karo.</div>';
+    return;
+  }
+  box.innerHTML = bulkCustomers.map((c,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:${i%2?'#f8fafc':'#fff'}">
+      <input type="checkbox" id="chk_${i}" checked style="width:16px;height:16px;cursor:pointer;accent-color:#25d366;"/>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;color:#1e293b;">${c.name||'Customer'}</div>
+        <div style="font-size:12px;color:#64748b;">${c.phone||'—'} · ${c.product||''} ${c.quantity||''}</div>
+      </div>
+      ${c.phone ? `<a href="${waLink(c)}" target="_blank"
+        style="background:#25d366;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
+        Send ↗
+      </a>` : '<span style="font-size:11px;color:#ef4444;">No phone</span>'}
+    </div>`).join('');
 }
 
 function fillPlaceholders(template, c){
@@ -786,32 +793,42 @@ function copyAllNumbers(){
 async function uploadAndSend(input){
   const file = input.files[0];
   if(!file) return;
-  const customMsg = document.getElementById('bulk-message').value.trim();
-  const fd = new FormData();
-  fd.append('file', file);
-  if(customMsg) fd.append('message', customMsg);
 
-  const resultDiv = document.getElementById('bulk-result');
-  const resultText = document.getElementById('bulk-result-text');
-  resultDiv.style.display = 'block';
-  resultText.textContent = '⏳ Sending messages...';
+  // Parse Excel in browser using SheetJS
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
 
-  try {
-    const res = await fetch('/api/send-delivery-messages', {method:'POST', body: fd});
-    const data = await res.json();
-    if(data.success){
-      resultText.textContent = data.summary;
-      if(data.errors?.length){
-        resultText.textContent += '\n\nFailed:\n' + data.errors.join('\n');
-      }
-    } else {
-      resultText.textContent = '❌ ' + (data.error || 'Failed');
-      resultDiv.style.background = '#fef2f2';
-      resultDiv.style.borderColor = '#fca5a5';
+      if(!rows.length){ alert('Excel mein koi data nahi mila.'); return; }
+
+      // Find name and phone columns (case-insensitive)
+      const sample = rows[0];
+      const keys = Object.keys(sample);
+      const nameKey   = keys.find(k => /name/i.test(k)) || keys[0];
+      const phoneKey  = keys.find(k => /phone|number|mobile/i.test(k));
+      const productKey= keys.find(k => /product/i.test(k));
+      const qtyKey    = keys.find(k => /qty|quantity|litre/i.test(k));
+
+      if(!phoneKey){ alert('Phone Number column nahi mili Excel mein.'); return; }
+
+      bulkCustomers = rows.map(r => ({
+        name:     String(r[nameKey]  || '').trim(),
+        phone:    String(r[phoneKey] || '').trim(),
+        product:  productKey ? String(r[productKey]||'').trim() : '',
+        quantity: qtyKey     ? String(r[qtyKey]    ||'').trim() : '',
+      })).filter(c => c.phone);
+
+      renderBulkList();
+      toast(`✅ ${bulkCustomers.length} customers loaded from Excel!`);
+    } catch(err){
+      alert('Excel read karne mein error: ' + err.message);
     }
-  } catch(e) {
-    resultText.textContent = '❌ Error: ' + e.message;
-  }
+  };
+  reader.readAsArrayBuffer(file);
   input.value = '';
 }
 
