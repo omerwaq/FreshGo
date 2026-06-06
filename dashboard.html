@@ -360,6 +360,9 @@ tr:hover td{background:#f9fdf9;}
     <div class="sb-item" onclick="showTab('create',this)">
       <div class="ico">➕</div> Create Post
     </div>
+    <div class="sb-item" onclick="showTab('whatsapp',this)">
+      <div class="ico">📲</div> WhatsApp Bulk
+    </div>
   </div>
 
   <div class="sb-section" style="margin-top:20px;">
@@ -535,6 +538,51 @@ tr:hover td{background:#f9fdf9;}
       </div>
     </div>
 
+    <!-- ── WhatsApp Bulk Tab ─────────────────────────────────────────────── -->
+    <div id="tab-whatsapp" style="display:none;">
+      <div class="section-card">
+        <div class="sc-header"><div class="sc-title">📲 WhatsApp Bulk Delivery Messages</div></div>
+        <div style="padding:20px;">
+
+          <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+            <div style="font-weight:700;color:#065f46;margin-bottom:6px;">Step 1 — Download Today's Customer List</div>
+            <div style="font-size:13px;color:#374151;margin-bottom:12px;">Excel file with today's orders. Add phone numbers if missing, then upload in Step 2.</div>
+            <button onclick="downloadCustomers()" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+              📥 Download Today's Customers (.xlsx)
+            </button>
+          </div>
+
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+            <div style="font-weight:700;color:#1e40af;margin-bottom:6px;">Step 2 — Upload & Send Delivery Messages</div>
+            <div style="font-size:13px;color:#374151;margin-bottom:12px;">Excel must have <strong>Customer Name</strong> and <strong>Phone Number</strong> columns.</div>
+            <input type="file" id="bulk-file" accept=".xlsx,.xls" style="display:none" onchange="uploadAndSend(this)"/>
+            <button onclick="document.getElementById('bulk-file').click()" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+              📤 Upload Excel & Send Messages
+            </button>
+          </div>
+
+          <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#92400e;margin-bottom:6px;">Custom Message (Optional)</div>
+            <textarea id="bulk-message" placeholder="Leave empty to use default delivery confirmation..." style="width:100%;min-height:70px;border:1px solid #d1d5db;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>
+          </div>
+
+          <div id="bulk-result" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px 18px;">
+            <div id="bulk-result-text" style="font-size:14px;font-weight:600;color:#065f46;"></div>
+          </div>
+
+          <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;border:1px solid #e2e8f0;margin-top:16px;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DEFAULT MESSAGE</div>
+            <div style="font-size:13px;color:#374151;white-space:pre-line;">Assalam o Alaikum [Name]! 🌿
+
+Aaj aapka Fresh Go doodh deliver ho gaya. 100% pure, hormone-free cow milk 🐄
+
+Shukriya Fresh Go choose karne ke liye! ❤️
+Sawaal: 0300-3147887</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- .content -->
 </div><!-- .main -->
 </div><!-- .shell -->
@@ -561,15 +609,58 @@ function toast(msg, type='success'){
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
-const TABS = {orders:'📦 Orders', scheduled:'📅 Scheduled Posts', create:'➕ Create Post'};
+const TABS = {
+  orders:'📦 Orders',
+  scheduled:'📅 Scheduled Posts',
+  create:'➕ Create Post',
+  whatsapp:'📲 WhatsApp Bulk'
+};
 function showTab(name, sbEl){
   Object.keys(TABS).forEach(t => {
-    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+    const el = document.getElementById('tab-'+t);
+    if(el) el.style.display = t===name ? 'block' : 'none';
   });
   document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
   if(sbEl) sbEl.classList.add('active');
   document.getElementById('page-title').textContent = TABS[name];
   if(name==='scheduled') loadScheduled();
+}
+
+// ── WhatsApp Bulk ──────────────────────────────────────────────────────────
+async function downloadCustomers(){
+  window.open('/api/export-customers', '_blank');
+}
+
+async function uploadAndSend(input){
+  const file = input.files[0];
+  if(!file) return;
+  const customMsg = document.getElementById('bulk-message').value.trim();
+  const fd = new FormData();
+  fd.append('file', file);
+  if(customMsg) fd.append('message', customMsg);
+
+  const resultDiv = document.getElementById('bulk-result');
+  const resultText = document.getElementById('bulk-result-text');
+  resultDiv.style.display = 'block';
+  resultText.textContent = '⏳ Sending messages...';
+
+  try {
+    const res = await fetch('/api/send-delivery-messages', {method:'POST', body: fd});
+    const data = await res.json();
+    if(data.success){
+      resultText.textContent = data.summary;
+      if(data.errors?.length){
+        resultText.textContent += '\n\nFailed:\n' + data.errors.join('\n');
+      }
+    } else {
+      resultText.textContent = '❌ ' + (data.error || 'Failed');
+      resultDiv.style.background = '#fef2f2';
+      resultDiv.style.borderColor = '#fca5a5';
+    }
+  } catch(e) {
+    resultText.textContent = '❌ Error: ' + e.message;
+  }
+  input.value = '';
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────

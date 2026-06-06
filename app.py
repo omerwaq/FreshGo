@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from database       import init_db, get_all_orders, get_stats, update_order_status, \
                            get_all_scheduled_posts, delete_scheduled_post, create_scheduled_post, \
-                           get_order
+                           get_order, get_todays_customers
 from ai_engine      import get_support_reply, generate_post
 from facebook       import send_message, publish_post
 from state          import set_pending_post, get_pending_post, clear_pending_post, has_pending_post
@@ -553,6 +553,131 @@ async def local_chat(request: Request):
         replies = await process_customer(sender_id, message)
 
     return {"replies": replies}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WhatsApp Bulk Messaging
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/export-customers")
+async def export_customers():
+    """Download today's customers as Excel file."""
+    from fastapi.responses import StreamingResponse
+    import openpyxl, io
+    from datetime import date
+
+    customers = get_todays_customers()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Today's Customers"
+
+    # Header row
+    headers = ["Order ID", "Customer Name", "Phone Number", "Product", "Quantity", "Address"]
+    for col, h in enumerate(headers, 1):
+        ws.cell(row=1, column=col, value=h)
+        ws.cell(row=1, column=col).font = openpyxl.styles.Font(bold=True)
+
+    # Data rows
+    for row, c in enumerate(customers, 2):
+        ws.cell(row=row, column=1, value=c.get("order_id", ""))
+        ws.cell(row=row, column=2, value=c.get("name", ""))
+        ws.cell(row=row, column=3, value=c.get("phone", ""))
+        ws.cell(row=row, column=4, value=c.get("product", ""))
+        ws.cell(row=row, column=5, value=c.get("quantity", ""))
+        ws.cell(row=row, column=6, value=c.get("address", ""))
+
+    # Auto-width columns
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"FreshGo_Customers_{date.today().strftime('%d-%m-%Y')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.post("/api/send-delivery-messages")
+async def send_delivery_messages(request: Request):
+    """
+    Accept Excel file upload or JSON list of {name, phone}.
+    Send WhatsApp delivery confirmation to each customer.
+    """
+    from whatsapp import send_whatsapp_message
+
+    content_type = request.headers.get("content-type", "")
+
+    if "multipart/form-data" in content_type:
+        from fastapi import UploadFile
+        import openpyxl, io
+        form = await request.form()
+        file = form.get("file")
+        custom_msg = form.get("message", "")
+
+        if not file:
+            return JSONResponse(status_code=400, content={"error": "No file uploaded"})
+
+        contents = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+        ws = wb.active
+
+        customers = []
+        headers = [str(ws.cell(1, c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+
+        name_col   = next((i for i, h in enumerate(headers) if "name" in h), None)
+        phone_col  = next((i for i, h in enumerate(headers) if "phone" in h or "number" in h or "mobile" in h), None)
+
+        if phone_col is None:
+            return JSONResponse(status_code=400, content={"error": "Phone number column not found in Excel"})
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            phone = str(row[phone_col] or "").strip()
+            name  = str(row[name_col] or "").strip() if name_col is not None else "Customer"
+            if phone and phone != "None":
+                customers.append({"name": name, "phone": phone})
+    else:
+        data = await request.json()
+        customers = data.get("customers", [])
+        custom_msg = data.get("message", "")
+
+    if not customers:
+        return JSONResponse(status_code=400, content={"error": "No customers found"})
+
+    # Send messages
+    results = {"sent": 0, "failed": 0, "errors": []}
+    for customer in customers:
+        phone = customer.get("phone", "").strip()
+        name  = customer.get("name", "Customer").strip()
+
+        # Clean phone number — ensure it starts with country code
+        phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+        if phone.startswith("0"):
+            phone = "92" + phone[1:]  # Pakistan code
+
+        message = custom_msg or (
+            f"Assalam o Alaikum {name}! 🌿\n\n"
+            f"Aaj aapka Fresh Go doodh deliver ho gaya hai. "
+            f"100% pure, hormone-free cow milk — Nankana Sahib Farm se seedha aapke ghar tak. 🐄\n\n"
+            f"Shukriya Fresh Go choose karne ke liye! ❤️\n"
+            f"Koi sawaal ho to WhatsApp karen: 0300-3147887"
+        )
+
+        result = send_whatsapp_message(phone, message)
+        if result:
+            results["sent"] += 1
+        else:
+            results["failed"] += 1
+            results["errors"].append(f"{name} ({phone}): failed")
+
+    return {"success": True, **results,
+            "summary": f"✅ {results['sent']} messages sent, ❌ {results['failed']} failed"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

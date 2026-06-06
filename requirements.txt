@@ -9,3 +9,4 @@ apscheduler
 imageio[ffmpeg]
 Pillow
 numpy
+openpyxl

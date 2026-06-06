@@ -70,6 +70,13 @@ def init_db():
         )
     """)
 
+    # Add phone column if missing (migration for existing DBs)
+    try:
+        c.execute("ALTER TABLE orders ADD COLUMN phone TEXT")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -197,6 +204,25 @@ def update_order_status(order_id: str, status: str,
     conn.commit()
     conn.close()
     return updated
+
+
+def get_todays_customers() -> list:
+    """Get all orders from today with name, phone, product, address."""
+    conn = get_conn()
+    c = conn.cursor()
+    today = datetime.now().strftime("%Y-%m-%d")
+    c.execute(
+        "SELECT order_id, name, phone, product, quantity, address, customer_id, platform "
+        "FROM orders WHERE timestamp LIKE ? ORDER BY id DESC",
+        (f"{today}%",)
+    )
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    # For WhatsApp orders, customer_id is the phone number
+    for row in rows:
+        if not row.get("phone") and row.get("platform") == "whatsapp":
+            row["phone"] = row.get("customer_id", "")
+    return rows
 
 
 def get_stats() -> dict:
