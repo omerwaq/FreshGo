@@ -574,7 +574,11 @@ tr:hover td{background:#f9fdf9;}
             </div>
 
             <textarea id="bulk-message" placeholder="Yahan apna message likhein... ya upar se template choose karen" style="width:100%;min-height:90px;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;line-height:1.5;"></textarea>
-            <div style="font-size:11px;color:#64748b;margin-top:4px;">[Name] likhne se customer ka naam automatically aayega</div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">
+            <strong>[Name]</strong> → customer ka naam &nbsp;|&nbsp;
+            <strong>[Litres]</strong> → unka order (quantity + product) &nbsp;|&nbsp;
+            <strong>[Product]</strong> → sirf product name
+          </div>
           </div>
 
           <div id="bulk-result" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px 18px;">
@@ -659,11 +663,11 @@ function showTab(name, sbEl){
 let bulkCustomers = [];
 
 const MSG_TEMPLATES = {
-  delivery: `Assalam o Alaikum [Name] bhai/behen! 🌿\n\nAaj aapka Fresh Go doodh deliver ho gaya hai. 100% pure, hormone-free cow milk — Nankana Sahib Farm se seedha aapke ghar tak. 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nKoi sawaal ho: 0300-3147887`,
-  nodelivery: `Assalam o Alaikum [Name] bhai/behen! 🙏\n\nAaj kisi majboori ki wajah se doodh deliver nahi ho payega. Hum maafi chahte hain.\n\nKal inshallah normal time par delivery hogi. Meherbani farmaiye. 🐄\n— Fresh Go: 0300-3147887`,
-  price: `Assalam o Alaikum [Name] bhai/behen! 📢\n\nHum aapko inform karna chahte hain ke ab se doodh ki nai price [PRICE] rupay per litre hogi.\n\nAapki sahuliyat ke liye hum pehle se inform kar rahe hain. Shukriya aapke trust ke liye! 🐄\n— Fresh Go: 0300-3147887`,
+  delivery: `Assalam o Alaikum [Name] bhai/behen! 🌿\n\nAaj aapka [Litres] Fresh Go doodh deliver ho gaya hai. 100% pure, hormone-free cow milk — Nankana Sahib Farm se seedha aapke ghar tak. 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nKoi sawaal ho: 0300-3147887`,
+  nodelivery: `Assalam o Alaikum [Name] bhai/behen! 🙏\n\nAaj kisi majboori ki wajah se doodh deliver nahi ho payega. Hum maafi chahte hain.\n\nAapka [Litres] kal inshallah deliver hoga. Meherbani farmaiye. 🐄\n— Fresh Go: 0300-3147887`,
+  price: `Assalam o Alaikum [Name] bhai/behen! 📢\n\nHum inform karna chahte hain ke ab se doodh ki nai price [PRICE] rupay per litre hogi.\n\nAapka rozana ka [Litres] ab [TOTAL] rupay ka hoga. Shukriya aapke trust ke liye! 🐄\n— Fresh Go: 0300-3147887`,
   bill: `Assalam o Alaikum [Name] bhai/behen! 🧾\n\nAapka Fresh Go ka total bill [AMOUNT] rupay hai ([DATE] tak ka).\n\nMeherbani karke jaldi payment kar dein. JazzCash/EasyPaisa: 0300-3147887\n\nShukriya! 🐄 — Fresh Go`,
-  holiday: `Assalam o Alaikum [Name] bhai/behen! 🎉\n\n[HOLIDAY] ki wajah se [DATE] ko doodh delivery band rahegi.\n\nAglay din se normal delivery shuru ho jayegi. Shukriya aapki samajh ke liye! 🐄\n— Fresh Go: 0300-3147887`,
+  holiday: `Assalam o Alaikum [Name] bhai/behen! 🎉\n\n[HOLIDAY] ki wajah se [DATE] ko doodh delivery band rahegi.\n\nAapka [Litres] aglay din se normal deliver hoga. Shukriya! 🐄\n— Fresh Go: 0300-3147887`,
 };
 
 function setTemplate(key){
@@ -703,10 +707,19 @@ async function loadBulkCustomers(){
   }
 }
 
+function fillPlaceholders(template, c){
+  return template
+    .replace(/\[Name\]/g,    c.name     || 'Customer')
+    .replace(/\[Litres\]/g,  c.quantity ? c.quantity + ' ' + (c.product||'doodh') : c.product || 'doodh')
+    .replace(/\[Product\]/g, c.product  || 'doodh')
+    .replace(/\[Address\]/g, c.address  || '');
+}
+
 function waLink(c){
   const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'92');
-  const msg = (document.getElementById('bulk-message').value.trim()) ||
-    `Assalam o Alaikum ${c.name||''}! 🌿\n\nAaj aapka Fresh Go doodh deliver ho gaya. 100% pure, hormone-free cow milk 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nSawaal: 0300-3147887`;
+  const template = document.getElementById('bulk-message').value.trim() ||
+    MSG_TEMPLATES.delivery;
+  const msg = fillPlaceholders(template, c);
   return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
