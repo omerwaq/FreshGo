@@ -119,7 +119,7 @@ def _try_together(prompt: str) -> str | None:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "black-forest-labs/FLUX.1-schnell-Free",
+                "model": "black-forest-labs/FLUX.1-schnell",
                 "prompt": prompt,
                 "width": 1024,
                 "height": 1024,
