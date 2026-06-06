@@ -396,13 +396,13 @@ async def verify_whatsapp(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge:    str = Query(None, alias="hub.challenge"),
 ):
-    from whatsapp import verify_whatsapp_webhook
-    challenge = verify_whatsapp_webhook(hub_mode or "", hub_verify_token or "",
-                                        hub_challenge or "")
-    if challenge:
+    from fastapi.responses import PlainTextResponse
+    print(f"[WhatsApp Verify] mode={hub_mode} token={hub_verify_token} challenge={hub_challenge}")
+    expected = os.getenv("WHATSAPP_VERIFY_TOKEN", os.getenv("WEBHOOK_VERIFY_TOKEN", "freshgo_secret_123"))
+    if hub_mode == "subscribe" and hub_verify_token == expected and hub_challenge:
         print("[WhatsApp Webhook] Verified ✅")
-        from fastapi.responses import PlainTextResponse
-        return PlainTextResponse(content=str(challenge))
+        return PlainTextResponse(content=str(hub_challenge))
+    print(f"[WhatsApp Verify] FAILED — expected token: {expected}")
     return JSONResponse(status_code=403, content={"error": "Verification failed"})
 
 
