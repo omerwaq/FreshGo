@@ -38,6 +38,13 @@ async def startup():
     start_scheduler()
     os.makedirs("static/images", exist_ok=True)
     os.makedirs("static/videos", exist_ok=True)
+    # Start WhatsApp Web client in background
+    try:
+        from wa_client import get_client
+        asyncio.create_task(get_client())
+        print("📱 WhatsApp Web client starting...")
+    except Exception as e:
+        print(f"[WA Startup] {e}")
     print("🐄 Fresh Go AI Agent started!")
 
 
@@ -559,6 +566,65 @@ async def local_chat(request: Request):
 # ─────────────────────────────────────────────────────────────────────────────
 # WhatsApp Bulk Messaging
 # ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/wa/status")
+async def wa_status():
+    try:
+        from wa_client import get_client
+        client = await get_client()
+        return {
+            "connected": client.is_ready,
+            "qr": client.qr_base64
+        }
+    except Exception as e:
+        return {"connected": False, "qr": None, "error": str(e)}
+
+
+@app.post("/api/wa/send-bulk")
+async def wa_send_bulk(request: Request):
+    data = await request.json()
+    customers = data.get("customers", [])
+    template  = data.get("message", "")
+
+    if not customers:
+        return JSONResponse(status_code=400, content={"error": "No customers"})
+
+    try:
+        from wa_client import get_client
+        client = await get_client()
+        if not client.is_ready:
+            return JSONResponse(status_code=503, content={"error": "WhatsApp not connected. Scan QR first."})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
+
+    sent, failed = 0, 0
+    for c in customers:
+        phone    = str(c.get("phone","")).strip()
+        name     = c.get("name","Customer")
+        quantity = c.get("quantity","")
+        product  = c.get("product","doodh")
+        qty_text = f"{quantity} {product}".strip() if quantity else product
+
+        if not phone:
+            failed += 1
+            continue
+
+        msg = (template or
+            f"Assalam o Alaikum {name}! 🌿\n\n"
+            f"Aaj aapka {qty_text} Fresh Go doodh deliver ho gaya hai. "
+            f"100% pure, hormone-free cow milk 🐄\n\n"
+            f"Shukriya Fresh Go choose karne ke liye! ❤️\n"
+            f"Sawaal: 0300-3147887"
+        ).replace("[Name]", name).replace("[Litres]", qty_text).replace("[Product]", product)
+
+        ok = await client.send_message(phone, msg)
+        if ok: sent += 1
+        else:  failed += 1
+        await asyncio.sleep(2)
+
+    return {"success": True, "sent": sent, "failed": failed,
+            "summary": f"✅ {sent} messages sent, ❌ {failed} failed"}
+
 
 @app.get("/api/todays-customers")
 async def todays_customers():

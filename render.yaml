@@ -2,7 +2,7 @@ services:
   - type: web
     name: freshgo
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && playwright install chromium --with-deps
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: GROQ_API_KEY

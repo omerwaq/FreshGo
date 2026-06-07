@@ -593,24 +593,23 @@ tr:hover td{background:#f9fdf9;}
             </button>
           </div>
 
-          <!-- WhatsApp Web Connect -->
-          <div style="background:#e7fce8;border:1.5px solid #86efac;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
-            <div style="font-weight:700;color:#065f46;margin-bottom:8px;">📱 WhatsApp Connect — Step 2</div>
-            <div style="font-size:13px;color:#374151;margin-bottom:12px;">Apne phone ka WhatsApp yahan connect karo. Phir ek click mein saare customers ko message jayega.</div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <button onclick="openWAWeb()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;">
-                📲 Open WhatsApp Web
-              </button>
-              <div id="wa-status" style="font-size:12px;color:#065f46;background:#f0fdf4;border-radius:6px;padding:6px 12px;border:1px solid #86efac;">
-                ⚪ WhatsApp Web open karo aur QR scan karo
-              </div>
+          <!-- WhatsApp Connection Status -->
+          <div id="wa-connect-box" style="background:#e7fce8;border:1.5px solid #86efac;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <div id="wa-dot" style="width:12px;height:12px;border-radius:50%;background:#d1d5db;"></div>
+              <div style="font-weight:700;color:#065f46;font-size:14px;" id="wa-connect-title">📱 WhatsApp — Checking...</div>
             </div>
-            <div style="margin-top:10px;font-size:12px;color:#374151;background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #d1fae5;">
-              <strong>How to connect:</strong><br>
-              1. Click "Open WhatsApp Web" → browser mein web.whatsapp.com khulega<br>
-              2. Phone mein WhatsApp → 3 dots → Linked Devices → Link a Device<br>
-              3. QR scan karo → aap connected ho gaye<br>
-              4. Wapas dashboard aao aur "Send WhatsApp to All" click karo
+            <!-- QR Code (shown when not connected) -->
+            <div id="wa-qr-section" style="display:none;text-align:center;padding:10px 0;">
+              <div style="font-size:13px;color:#374151;margin-bottom:10px;">Phone se scan karo — sirf ek baar</div>
+              <img id="wa-qr-img" src="" style="width:200px;height:200px;border-radius:10px;border:2px solid #86efac;"/>
+              <div style="font-size:12px;color:#6b7280;margin-top:6px;">QR scan ke baad automatically connect ho jayega</div>
+            </div>
+            <!-- Connected state -->
+            <div id="wa-connected-section" style="display:none;">
+              <div style="font-size:13px;color:#065f46;background:#f0fdf4;padding:10px 14px;border-radius:8px;">
+                ✅ WhatsApp connected! Ab "Send WhatsApp to All" click karo — sab ko automatically message jayega.
+              </div>
             </div>
           </div>
 
@@ -785,19 +784,37 @@ function setTemplate(key){
   document.getElementById('bulk-message').focus();
 }
 
-function openWAWeb(){
-  window.open('https://web.whatsapp.com', '_blank');
-  document.getElementById('wa-status').innerHTML = '🟡 WhatsApp Web khul gaya — QR scan karo phir wapas aao';
-  document.getElementById('wa-status').style.background = '#fefce8';
-  document.getElementById('wa-status').style.borderColor = '#fde68a';
-  document.getElementById('wa-status').style.color = '#92400e';
-  setTimeout(() => {
-    document.getElementById('wa-status').innerHTML = '🟢 Connected? Ab "Send WhatsApp to All" click karo!';
-    document.getElementById('wa-status').style.background = '#f0fdf4';
-    document.getElementById('wa-status').style.borderColor = '#86efac';
-    document.getElementById('wa-status').style.color = '#065f46';
-  }, 15000);
+// ── WhatsApp Status Polling ────────────────────────────────────────────────
+async function checkWAStatus(){
+  try {
+    const res = await fetch('/api/wa/status');
+    const data = await res.json();
+    const dot   = document.getElementById('wa-dot');
+    const title = document.getElementById('wa-connect-title');
+    const qrSec = document.getElementById('wa-qr-section');
+    const conSec= document.getElementById('wa-connected-section');
+    const qrImg = document.getElementById('wa-qr-img');
+
+    if(data.connected){
+      dot.style.background = '#22c55e';
+      title.textContent = '📱 WhatsApp — Connected ✅';
+      qrSec.style.display  = 'none';
+      conSec.style.display = 'block';
+    } else if(data.qr){
+      dot.style.background = '#f59e0b';
+      title.textContent = '📱 WhatsApp — QR Scan Karo';
+      qrSec.style.display  = 'block';
+      conSec.style.display = 'none';
+      qrImg.src = 'data:image/png;base64,' + data.qr;
+    } else {
+      dot.style.background = '#d1d5db';
+      title.textContent = '📱 WhatsApp — Starting...';
+    }
+  } catch(e){}
 }
+// Poll every 3 seconds
+setInterval(checkWAStatus, 3000);
+checkWAStatus();
 
 async function downloadCustomers(){
   window.open('/api/export-customers', '_blank');
@@ -855,19 +872,42 @@ function waLink(c){
 
 let queueList = [], queueIdx = 0;
 
-function startSendQueue(){
-  queueList = bulkCustomers.filter((c,i) => {
+async function startSendQueue(){
+  const selected = bulkCustomers.filter((c,i) => {
     const chk = document.getElementById('chk_'+i);
     return chk && chk.checked && c.phone;
   });
-  if(!queueList.length){
+  if(!selected.length){
     alert('Koi customer nahi mila phone number ke sath. Pehle Excel upload karo.');
     return;
   }
-  queueIdx = 0;
-  document.getElementById('send-queue-panel').style.display = 'block';
-  showQueueCustomer();
-  document.getElementById('send-queue-panel').scrollIntoView({behavior:'smooth'});
+
+  const msg = document.getElementById('bulk-message').value.trim();
+  const resultDiv  = document.getElementById('bulk-result');
+  const resultText = document.getElementById('bulk-result-text');
+  resultDiv.style.display = 'block';
+  resultText.textContent  = `⏳ ${selected.length} customers ko message bheja ja raha hai...`;
+
+  try {
+    const res  = await fetch('/api/wa/send-bulk', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ customers: selected, message: msg })
+    });
+    const data = await res.json();
+    if(data.success){
+      resultText.textContent = data.summary;
+      toast(data.summary);
+    } else {
+      resultText.textContent = '❌ ' + (data.error || 'Failed');
+      // Fallback to queue if server send fails
+      if(data.error && data.error.includes('not connected')){
+        resultText.textContent = '⚠️ WhatsApp connected nahi. QR scan karo upar se phir try karo.';
+      }
+    }
+  } catch(e){
+    resultText.textContent = '❌ Server error: ' + e.message;
+  }
 }
 
 function showQueueCustomer(){
