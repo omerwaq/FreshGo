@@ -330,34 +330,46 @@ tr:hover td{background:#f9fdf9;}
 .toast.error  {background:linear-gradient(135deg,#dc2626,#ef4444);}
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+/* ── Desktop: hide hamburger & bottom nav ──────────────────────────────── */
+.hamburger{ display:none; }
+.mobile-bottom-nav{ display:none; }
+
 @media(max-width:900px){
-  .sidebar{
+  .sidebar{ display:none; }
+  .main{ padding-bottom:70px; }
+
+  /* Bottom navigation bar */
+  .mobile-bottom-nav{
     display:flex;
-    position:fixed;
-    left:-260px;
-    top:0;bottom:0;
+    position:fixed;bottom:0;left:0;right:0;
+    background:#1a2e1a;
+    border-top:1px solid rgba(255,255,255,.1);
     z-index:1000;
-    transition:left .25s ease;
-    box-shadow:4px 0 20px rgba(0,0,0,.3);
+    height:60px;
   }
-  .sidebar.open{left:0;}
-  .mobile-overlay{
-    display:none;
-    position:fixed;inset:0;
-    background:rgba(0,0,0,.5);
-    z-index:999;
-  }
-  .mobile-overlay.open{display:block;}
-  .hamburger{
-    display:flex;
+  .mob-nav-item{
+    flex:1;display:flex;flex-direction:column;
     align-items:center;justify-content:center;
-    width:38px;height:38px;
-    background:rgba(255,255,255,.15);
-    border:none;border-radius:8px;
-    cursor:pointer;color:#fff;font-size:20px;
-    margin-right:8px;
+    gap:2px;color:rgba(255,255,255,.5);
+    font-size:10px;font-weight:600;
+    cursor:pointer;border:none;background:none;
+    padding:6px 4px;
+    transition:color .15s;
   }
-  .stats-grid{grid-template-columns:repeat(3,1fr);}
+  .mob-nav-item .ico{ font-size:20px; }
+  .mob-nav-item.active{ color:#4ade80; }
+  .mob-nav-item:active{ opacity:.7; }
+
+  /* Stats 2 columns on mobile */
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+
+  /* Table horizontal scroll */
+  .orders-table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .orders-table{ min-width:600px; }
+
+  /* Section cards full width */
+  .section-card{ border-radius:12px; }
+  .content{ padding:12px; }
 }
 </style>
 </head>
@@ -464,8 +476,8 @@ tr:hover td{background:#f9fdf9;}
           <button class="filter-btn" onclick="filterOrders('cancelled',this)">❌ Cancelled</button>
           <input class="search-box" type="text" placeholder="🔍  Search name, order ID, address…" oninput="searchOrders(this.value)"/>
         </div>
-        <div class="tbl-wrap">
-          <table>
+        <div class="tbl-wrap orders-table-wrap">
+          <table class="orders-table">
             <thead>
               <tr>
                 <th>Order ID</th><th>Date & Time</th><th>Customer</th>
@@ -693,33 +705,31 @@ Sawaal: 0300-3147887</div>
 </div><!-- .main -->
 </div><!-- .shell -->
 
+<!-- Mobile bottom navigation -->
+<nav class="mobile-bottom-nav">
+  <button class="mob-nav-item active" id="mob-orders" onclick="showTab('orders',this);setMobActive(this)">
+    <span class="ico">📦</span>Orders
+  </button>
+  <button class="mob-nav-item" id="mob-scheduled" onclick="showTab('scheduled',this);setMobActive(this)">
+    <span class="ico">📅</span>Scheduled
+  </button>
+  <button class="mob-nav-item" id="mob-create" onclick="showTab('create',this);setMobActive(this)">
+    <span class="ico">➕</span>Create
+  </button>
+  <button class="mob-nav-item" id="mob-whatsapp" onclick="showTab('whatsapp',this);setMobActive(this)">
+    <span class="ico">📲</span>WhatsApp
+  </button>
+</nav>
+
 <div class="toast" id="toast"></div>
 
 <script>
-// ── Mobile sidebar ────────────────────────────────────────────────────────
+// ── Mobile navigation ─────────────────────────────────────────────────────
 function isMobile(){ return window.innerWidth <= 900; }
-function toggleSidebar(){
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('mobileOverlay').classList.toggle('open');
+function setMobActive(el){
+  document.querySelectorAll('.mob-nav-item').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
 }
-function closeSidebar(){
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('mobileOverlay').classList.remove('open');
-}
-function setupMobile(){
-  const hb = document.getElementById('hamburger');
-  if(isMobile()){
-    hb.style.display = 'flex';
-  } else {
-    hb.style.display = 'none';
-    closeSidebar();
-  }
-}
-window.addEventListener('resize', setupMobile);
-window.addEventListener('load', setupMobile);
-
-// Close sidebar when a tab is clicked on mobile
-const _origShowTab = typeof showTab !== 'undefined' ? showTab : null;
 
 // ── State ──────────────────────────────────────────────────────────────────
 let allOrders = [], curFilter = 'all';
