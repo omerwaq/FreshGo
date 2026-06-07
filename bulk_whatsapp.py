@@ -122,17 +122,24 @@ def send_messages(customers: list, message_template: str = None):
         print(f"📤 [{i+1}/{len(customers)}] Sending to {name} ({phone})...")
 
         try:
-            url = f"https://web.whatsapp.com/send?phone={phone}&text={msg.replace(chr(10), '%0A')}"
+            import urllib.parse
+            encoded_msg = urllib.parse.quote(msg)
+            url = f"https://web.whatsapp.com/send?phone={phone}&text={encoded_msg}"
             driver.get(url)
 
-            # Wait for message box to appear
-            send_btn = WebDriverWait(driver, 25).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR,
-                    'button[data-testid="compose-btn-send"], span[data-testid="send"]'))
+            # Wait for the message input box to appear
+            input_box = WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                    'div[data-testid="conversation-compose-box-input"], '
+                    'div[contenteditable="true"][data-tab="10"], '
+                    'footer div[contenteditable="true"]'
+                ))
             )
-            time.sleep(1.5)
-            send_btn.click()
-            time.sleep(2)
+            time.sleep(2)  # Let text load into box
+
+            # Press ENTER to send
+            input_box.send_keys(Keys.ENTER)
+            time.sleep(2.5)
             sent += 1
             print(f"   ✅ Sent!")
 
