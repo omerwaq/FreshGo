@@ -38,13 +38,6 @@ async def startup():
     start_scheduler()
     os.makedirs("static/images", exist_ok=True)
     os.makedirs("static/videos", exist_ok=True)
-    # Start WhatsApp Web client in background
-    try:
-        from wa_client import get_client
-        asyncio.create_task(get_client())
-        print("📱 WhatsApp Web client starting...")
-    except Exception as e:
-        print(f"[WA Startup] {e}")
     print("🐄 Fresh Go AI Agent started!")
 
 

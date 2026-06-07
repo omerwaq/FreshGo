@@ -10,4 +10,3 @@ imageio[ffmpeg]
 Pillow
 numpy
 openpyxl
-playwright
