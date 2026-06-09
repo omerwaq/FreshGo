@@ -628,35 +628,27 @@ async def local_chat(request: Request):
 @app.get("/api/wa/status")
 async def wa_status():
     import requests as req
-    instance = os.getenv("ULTRAMSG_INSTANCE", "")
-    token    = os.getenv("ULTRAMSG_TOKEN", "")
+    instance = os.getenv("GREENAPI_INSTANCE", "")
+    token    = os.getenv("GREENAPI_TOKEN", "")
 
     if not instance or not token:
-        return {"connected": False, "qr": None, "mode": "ultramsg", "configured": False}
+        return {"connected": False, "qr": None, "configured": False}
 
+    base = f"https://api.green-api.com/waInstance{instance}"
     try:
-        # Check instance status
-        r = req.get(
-            f"https://api.ultramsg.com/{instance}/instance/status",
-            params={"token": token}, timeout=10
-        )
-        data = r.json()
-        status = data.get("instance", {}).get("status", "")
+        r = req.get(f"{base}/getStateInstance/{token}", timeout=10)
+        state = r.json().get("stateInstance", "")
+        if state == "authorized":
+            return {"connected": True, "qr": None, "configured": True}
 
-        if status == "authenticated":
-            return {"connected": True, "qr": None, "mode": "ultramsg", "configured": True}
-
-        # Not connected — fetch QR code
-        qr_r = req.get(
-            f"https://api.ultramsg.com/{instance}/instance/qr",
-            params={"token": token}, timeout=10
-        )
+        # Not authorized — get QR
+        qr_r  = req.get(f"{base}/qr/{token}", timeout=10)
         qr_data = qr_r.json()
-        qr_b64  = qr_data.get("qrCode", "").replace("data:image/png;base64,", "")
-        return {"connected": False, "qr": qr_b64 or None, "mode": "ultramsg", "configured": True}
-
+        if qr_data.get("type") == "qrCode":
+            return {"connected": False, "qr": qr_data.get("message"), "configured": True}
+        return {"connected": False, "qr": None, "configured": True, "state": state}
     except Exception as e:
-        return {"connected": False, "qr": None, "mode": "ultramsg", "configured": True, "error": str(e)}
+        return {"connected": False, "qr": None, "configured": True, "error": str(e)}
 
 
 @app.post("/api/wa/register")
@@ -691,13 +683,13 @@ async def wa_register(request: Request):
 async def wa_send_bulk(request: Request):
     import requests as req
 
-    instance = os.getenv("ULTRAMSG_INSTANCE", "")
-    token    = os.getenv("ULTRAMSG_TOKEN", "")
+    instance = os.getenv("GREENAPI_INSTANCE", "")
+    token    = os.getenv("GREENAPI_TOKEN", "")
 
     if not instance or not token:
         return JSONResponse(status_code=503, content={
             "error": "not_configured",
-            "hint": "Add ULTRAMSG_INSTANCE and ULTRAMSG_TOKEN in Railway environment variables."
+            "hint": "Add GREENAPI_INSTANCE and GREENAPI_TOKEN in Railway environment variables."
         })
 
     data      = await request.json()
@@ -740,12 +732,12 @@ async def wa_send_bulk(request: Request):
 
         try:
             r = req.post(
-                f"https://api.ultramsg.com/{instance}/messages/chat",
-                data={"token": token, "to": phone, "body": msg, "priority": 1},
+                f"https://api.green-api.com/waInstance{instance}/sendMessage/{token}",
+                json={"chatId": f"{phone}@c.us", "message": msg},
                 timeout=15,
             )
             result = r.json()
-            if result.get("sent") == "true" or result.get("id"):
+            if result.get("idMessage"):
                 sent += 1
             else:
                 failed += 1
