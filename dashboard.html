@@ -696,12 +696,12 @@ tr:hover td{background:#f9fdf9;}
 
           <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;border:1px solid #e2e8f0;margin-top:16px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DEFAULT MESSAGE (edit above to customize)</div>
-            <div style="font-size:13px;color:#374151;white-space:pre-line;">Assalam o Alaikum [Name]! 🌿
+            <div style="font-size:13px;color:#374151;white-space:pre-line;">Dear [Name], 🌿
 
-Aaj aapka Fresh Go doodh deliver ho gaya. 100% pure, hormone-free cow milk 🐄
+Your Fresh Go milk ([Litres]) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄
 
-Shukriya Fresh Go choose karne ke liye! ❤️
-Sawaal: 0300-3147887</div>
+Thank you for choosing Fresh Go! ❤️
+Any questions? Call/WhatsApp: 0300-3147887</div>
           </div>
         </div>
       </div>
@@ -871,11 +871,11 @@ function showTab(name, sbEl){
 let bulkCustomers = [];
 
 const MSG_TEMPLATES = {
-  delivery: `Assalam o Alaikum [Name] bhai/behen! 🌿\n\nAaj aapka [Litres] Fresh Go doodh deliver ho gaya hai. 100% pure, hormone-free cow milk — Nankana Sahib Farm se seedha aapke ghar tak. 🐄\n\nShukriya Fresh Go choose karne ke liye! ❤️\nKoi sawaal ho: 0300-3147887`,
-  nodelivery: `Assalam o Alaikum [Name] bhai/behen! 🙏\n\nAaj kisi majboori ki wajah se doodh deliver nahi ho payega. Hum maafi chahte hain.\n\nAapka [Litres] kal inshallah deliver hoga. Meherbani farmaiye. 🐄\n— Fresh Go: 0300-3147887`,
-  price: `Assalam o Alaikum [Name] bhai/behen! 📢\n\nHum inform karna chahte hain ke ab se doodh ki nai price [PRICE] rupay per litre hogi.\n\nAapka rozana ka [Litres] ab [TOTAL] rupay ka hoga. Shukriya aapke trust ke liye! 🐄\n— Fresh Go: 0300-3147887`,
-  bill: `Assalam o Alaikum [Name] bhai/behen! 🧾\n\nAapka Fresh Go ka total bill [AMOUNT] rupay hai ([DATE] tak ka).\n\nMeherbani karke jaldi payment kar dein. JazzCash/EasyPaisa: 0300-3147887\n\nShukriya! 🐄 — Fresh Go`,
-  holiday: `Assalam o Alaikum [Name] bhai/behen! 🎉\n\n[HOLIDAY] ki wajah se [DATE] ko doodh delivery band rahegi.\n\nAapka [Litres] aglay din se normal deliver hoga. Shukriya! 🐄\n— Fresh Go: 0300-3147887`,
+  delivery: `Dear [Name], 🌿\n\nYour Fresh Go milk ([Litres]) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄\n\nThank you for choosing Fresh Go! ❤️\nAny questions? Call/WhatsApp: 0300-3147887`,
+  nodelivery: `Dear [Name], 🙏\n\nUnfortunately, we are unable to deliver your milk today due to unforeseen circumstances. We sincerely apologize for the inconvenience.\n\nYour order ([Litres]) will be delivered tomorrow, InshAllah. Thank you for your patience. 🐄\n— Fresh Go: 0300-3147887`,
+  price: `Dear [Name], 📢\n\nWe would like to inform you that our milk price has been updated to [PRICE] per litre.\n\nYour daily order of [Litres] will now be [TOTAL]. Thank you for your continued trust! 🐄\n— Fresh Go: 0300-3147887`,
+  bill: `Dear [Name], 🧾\n\nYour Fresh Go bill up to [DATE] is Rs. [AMOUNT].\n\nPlease make your payment at your earliest convenience.\nJazzCash/EasyPaisa: 0300-3147887\n\nThank you! 🐄 — Fresh Go`,
+  holiday: `Dear [Name], 🎉\n\nPlease note that milk delivery will be suspended on [DATE] due to [HOLIDAY].\n\nYour delivery will resume normally the following day. Thank you for your understanding! 🐄\n— Fresh Go: 0300-3147887`,
 };
 
 function setTemplate(key){

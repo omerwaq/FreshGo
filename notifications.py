@@ -46,20 +46,20 @@ def notify_admin_payment(order_id: str, name: str, amount: str):
 
 _STATUS_MSGS = {
     "confirmed": (
-        "✅ Order #{id} confirm ho gaya!\n"
-        "Hamari team aaj deliver karegi — Subah 11 se Sham 5 baje. — Fresh Go 🐄"
+        "✅ Your order #{id} has been confirmed!\n"
+        "Our team will deliver today between 11 AM – 5 PM. — Fresh Go 🐄"
     ),
     "delivered": (
-        "🎉 Order #{id} deliver ho gaya! Shukriya Fresh Go ko choose karne ka 🙏\n"
-        "Dobara order: 'order' type karen. — Fresh Go 🐄"
+        "🎉 Your order #{id} has been delivered! Thank you for choosing Fresh Go. 🙏\n"
+        "To place another order, just type 'order'. — Fresh Go 🐄"
     ),
     "cancelled": (
-        "❌ Order #{id} cancel ho gaya.\n"
-        "Masla ho to WhatsApp karen: 0300-3147887 — Fresh Go 🐄"
+        "❌ Your order #{id} has been cancelled.\n"
+        "For any concerns, please WhatsApp us: 0300-3147887 — Fresh Go 🐄"
     ),
     "paid": (
-        "✅ Payment receive ho gaya Order #{id} ke liye! 🎉\n"
-        "Shukriya — Fresh Go 🐄"
+        "✅ Payment received for order #{id}! 🎉\n"
+        "Thank you — Fresh Go 🐄"
     ),
 }
 

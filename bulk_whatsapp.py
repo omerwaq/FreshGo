@@ -20,13 +20,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 RAILWAY_URL   = "https://freshgo-production.up.railway.app"
 SESSION_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_session")
 
-DEFAULT_MESSAGE = """Assalam o Alaikum {name} bhai/behen! 🌿
+DEFAULT_MESSAGE = """Dear {name}, 🌿
 
-Aaj aapka {quantity} Fresh Go doodh deliver ho gaya hai.
-100% pure, hormone-free cow milk 🐄
+Your Fresh Go milk ({quantity}) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄
 
-Shukriya Fresh Go choose karne ke liye! ❤️
-Koi sawaal ho: 0300-3147887"""
+Thank you for choosing Fresh Go! ❤️
+Any questions? Call/WhatsApp: 0300-3147887"""
 
 
 def clean_phone(phone: str) -> str:
