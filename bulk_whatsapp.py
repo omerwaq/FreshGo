@@ -39,25 +39,95 @@ def clean_phone(phone: str) -> str:
 
 
 def fetch_customers_from_railway() -> list:
-    """Fetch today's customers directly from the Railway server."""
+    """Fetch today's customers from Railway. Returns only those with phone numbers."""
     print("📡 Railway se customers fetch ho rahe hain...")
     try:
         url = f"{RAILWAY_URL}/api/todays-customers"
         with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.loads(resp.read().decode())
         customers = data.get("customers", [])
-        # Clean phone numbers
         for c in customers:
             if c.get("phone"):
                 c["phone"] = clean_phone(str(c["phone"]))
-        # Filter out customers without phone
         customers = [c for c in customers if c.get("phone")]
-        print(f"✅ {len(customers)} customers mile aaj ke liye\n")
+        print(f"✅ {len(customers)} customers mile Railway se\n")
         return customers
     except Exception as e:
-        print(f"❌ Railway se fetch nahi hua: {e}")
-        print("   Check karo: internet connection aur Railway server running hai?")
-        sys.exit(1)
+        print(f"⚠️  Railway se fetch nahi hua: {e}")
+        return []
+
+
+def read_excel(filepath: str) -> list:
+    """Read customers from an Excel file."""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(filepath)
+        ws = wb.active
+        headers = [str(ws.cell(1, c).value or "").strip().lower()
+                   for c in range(1, ws.max_column + 1)]
+
+        name_col    = next((i for i, h in enumerate(headers) if "name"    in h), None)
+        phone_col   = next((i for i, h in enumerate(headers) if "phone"   in h or "number" in h or "mobile" in h), None)
+        qty_col     = next((i for i, h in enumerate(headers) if "qty"     in h or "quant"  in h or "litre"  in h), None)
+        product_col = next((i for i, h in enumerate(headers) if "product" in h), None)
+
+        if phone_col is None:
+            print("❌ Excel mein Phone/Number column nahi mila!")
+            return []
+
+        customers = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            phone = str(row[phone_col] or "").strip()
+            if not phone or phone.lower() == "none":
+                continue
+            customers.append({
+                "name":     str(row[name_col]    or "Customer").strip() if name_col    is not None else "Customer",
+                "phone":    clean_phone(phone),
+                "quantity": str(row[qty_col]     or "").strip()         if qty_col     is not None else "",
+                "product":  str(row[product_col] or "doodh").strip()    if product_col is not None else "doodh",
+            })
+        return customers
+    except Exception as e:
+        print(f"❌ Excel read error: {e}")
+        return []
+
+
+def find_excel_file() -> str | None:
+    """Look for any FreshGo Excel file in the same folder."""
+    folder = os.path.dirname(os.path.abspath(__file__))
+    for f in sorted(os.listdir(folder), reverse=True):
+        if f.endswith((".xlsx", ".xls")) and not f.startswith("~"):
+            return os.path.join(folder, f)
+    return None
+
+
+def get_customers() -> list:
+    """Get customers: first from Railway, then fall back to Excel file."""
+    customers = fetch_customers_from_railway()
+
+    if customers:
+        return customers
+
+    print("ℹ️  Railway pe phone numbers nahi hain.")
+    print("   Excel file se customers load kiye ja rahe hain...\n")
+
+    # Try to find Excel automatically
+    excel_path = find_excel_file()
+    if excel_path:
+        print(f"📂 Excel mili: {os.path.basename(excel_path)}")
+        customers = read_excel(excel_path)
+        if customers:
+            print(f"✅ {len(customers)} customers Excel se mile\n")
+            return customers
+
+    # Ask user to provide Excel path
+    print("📂 Excel file ka path paste karo (ya Enter dabaiye cancel ke liye):")
+    path = input("Path: ").strip().strip('"').strip("'")
+    if path and os.path.exists(path):
+        customers = read_excel(path)
+        if customers:
+            print(f"✅ {len(customers)} customers mile\n")
+    return customers
 
 
 def send_messages(customers: list, message_template: str):
@@ -137,7 +207,7 @@ def send_messages(customers: list, message_template: str):
 
 
 if __name__ == "__main__":
-    customers = fetch_customers_from_railway()
+    customers = get_customers()
 
     if not customers:
         print("Aaj koi customers nahi hain jinka phone number ho.")
