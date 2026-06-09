@@ -991,7 +991,11 @@ async function startSendQueue(){
       const resultText = document.getElementById('bulk-result-text');
       resultDiv.style.display = 'block';
       if(data.success){
-        resultText.textContent = data.summary;
+        let txt = data.summary;
+        if(data.errors && data.errors.length){
+          txt += '\n\nErrors:\n' + data.errors.join('\n');
+        }
+        resultText.textContent = txt;
         showToast(data.summary);
       } else {
         resultText.textContent = '❌ ' + (data.error || 'Send failed');

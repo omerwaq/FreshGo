@@ -648,17 +648,27 @@ async def wa_send_bulk(request: Request):
     if not customers:
         return JSONResponse(status_code=400, content={"error": "No customers provided"})
 
-    sent, failed = 0, 0
-    for c in customers:
-        phone    = str(c.get("phone", "")).strip()
-        name     = c.get("name", "Customer")
-        quantity = c.get("quantity", "")
-        product  = c.get("product", "doodh")
-        qty_text = f"{quantity} {product}".strip() if quantity else product
+    def _normalize_phone(p: str) -> str:
+        p = p.replace(" ", "").replace("-", "").replace("+", "")
+        if p.startswith("0"):
+            p = "92" + p[1:]       # 03001234567  → 923001234567
+        elif not p.startswith("92"):
+            p = "92" + p           # 3001234567   → 923001234567
+        return p
 
-        if not phone:
+    sent, failed, errors = 0, 0, []
+    for c in customers:
+        raw_phone = str(c.get("phone", "")).strip()
+        name      = c.get("name", "Customer")
+        quantity  = c.get("quantity", "")
+        product   = c.get("product", "doodh")
+        qty_text  = f"{quantity} {product}".strip() if quantity else product
+
+        if not raw_phone:
             failed += 1
             continue
+
+        phone = _normalize_phone(raw_phone)
 
         msg = (template or
             "Assalam o Alaikum {name}! 🌿\n\n"
@@ -667,24 +677,26 @@ async def wa_send_bulk(request: Request):
             "Shukriya Fresh Go choose karne ke liye! ❤️\n"
             "Koi sawaal ho: 0300-3147887"
         ).format(name=name, qty=qty_text)
-
-        # Template placeholders
         msg = msg.replace("[Name]", name).replace("[Litres]", qty_text).replace("[Product]", product)
 
         result = await asyncio.to_thread(send_whatsapp_message, phone, msg)
-        if result and "error" not in (result or {}):
+        meta_error = (result or {}).get("error", {})
+        if result and not meta_error:
             sent += 1
         else:
             failed += 1
-            print(f"[WA Bulk] Failed for {phone}: {result}")
+            err_msg = meta_error.get("message", str(result)) if isinstance(meta_error, dict) else str(result)
+            errors.append(f"{name} ({phone}): {err_msg}")
+            print(f"[WA Bulk] Failed {phone}: {err_msg}")
 
-        await asyncio.sleep(0.3)  # stay within Meta rate limits
+        await asyncio.sleep(0.3)
 
     return {
         "success": True,
         "sent":    sent,
         "failed":  failed,
-        "summary": f"✅ {sent} messages sent, ❌ {failed} failed"
+        "summary": f"✅ {sent} messages sent, ❌ {failed} failed",
+        "errors":  errors[:5],   # first 5 errors so dashboard can show them
     }
 
 
