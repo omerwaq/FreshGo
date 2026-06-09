@@ -227,32 +227,65 @@ def get_todays_customers() -> list:
 
 def get_unpaid_customers() -> list:
     """
-    Return one row per customer with unpaid/delivered orders.
-    Includes total_amount sum and list of order IDs.
+    Return one row per customer with unpaid orders.
+    Includes each order's date, product, quantity, and amount.
     """
     conn = get_conn()
     c = conn.cursor()
+
+    # Get individual unpaid orders
     c.execute("""
-        SELECT
-            name,
-            phone,
-            customer_id,
-            platform,
-            COUNT(*)            AS order_count,
-            GROUP_CONCAT(order_id, ', ')  AS order_ids,
-            SUM(CASE WHEN total_amount GLOB '[0-9]*' THEN CAST(total_amount AS INTEGER) ELSE 0 END) AS total_due
+        SELECT name, phone, customer_id, platform,
+               order_id, timestamp, product, quantity, total_amount
         FROM orders
         WHERE payment_status IN ('unpaid', 'pending', '')
           AND status NOT IN ('cancelled')
-        GROUP BY COALESCE(NULLIF(phone,''), customer_id)
-        ORDER BY total_due DESC
+        ORDER BY COALESCE(NULLIF(phone,''), customer_id), timestamp ASC
     """)
-    rows = [dict(r) for r in c.fetchall()]
+    orders = [dict(r) for r in c.fetchall()]
     conn.close()
-    for row in rows:
-        if not row.get("phone") and row.get("platform") == "whatsapp":
-            row["phone"] = row.get("customer_id", "")
-    return rows
+
+    # Group by customer
+    grouped = {}
+    for o in orders:
+        key = o.get("phone") or o.get("customer_id") or o.get("name", "unknown")
+        if o.get("platform") == "whatsapp" and not o.get("phone"):
+            o["phone"] = o.get("customer_id", "")
+        if key not in grouped:
+            grouped[key] = {
+                "name":        o["name"],
+                "phone":       o.get("phone") or o.get("customer_id", ""),
+                "platform":    o["platform"],
+                "orders":      [],
+                "total_due":   0,
+            }
+        # Format date: "Mon, 9 Jun"
+        try:
+            from datetime import datetime as dt
+            d = dt.strptime(o["timestamp"][:10], "%Y-%m-%d")
+            date_str = d.strftime("%a, %-d %b")
+        except Exception:
+            date_str = o["timestamp"][:10]
+
+        amount = 0
+        try:
+            raw = str(o.get("total_amount") or "").strip()
+            amount = int(float(raw)) if raw else 0
+        except Exception:
+            pass
+
+        grouped[key]["orders"].append({
+            "order_id": o["order_id"],
+            "date":     date_str,
+            "product":  o.get("product", ""),
+            "quantity": o.get("quantity", ""),
+            "amount":   amount,
+        })
+        grouped[key]["total_due"] += amount
+
+    result = list(grouped.values())
+    result.sort(key=lambda x: x["total_due"], reverse=True)
+    return result
 
 
 def get_stats() -> dict:
