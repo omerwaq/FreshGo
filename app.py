@@ -631,6 +631,34 @@ async def wa_status():
     return {"configured": _is_configured(), "mode": "api"}
 
 
+@app.post("/api/wa/register")
+async def wa_register(request: Request):
+    """Register the WhatsApp Business phone number with a 2FA PIN (one-time setup)."""
+    import requests as req
+    from dotenv import load_dotenv
+    load_dotenv()
+    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    token    = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    if not phone_id or not token:
+        return JSONResponse(status_code=503, content={"error": "Credentials not configured"})
+
+    body = await request.json()
+    pin  = str(body.get("pin", "")).strip()
+    if len(pin) != 6 or not pin.isdigit():
+        return JSONResponse(status_code=400, content={"error": "PIN must be exactly 6 digits"})
+
+    resp = req.post(
+        f"https://graph.facebook.com/v19.0/{phone_id}/register",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"messaging_product": "whatsapp", "pin": pin},
+        timeout=15,
+    )
+    result = resp.json()
+    if resp.status_code == 200 and result.get("success"):
+        return {"ok": True, "message": "Phone number registered successfully!"}
+    return JSONResponse(status_code=400, content={"error": result})
+
+
 @app.post("/api/wa/send-bulk")
 async def wa_send_bulk(request: Request):
     from whatsapp import send_whatsapp_message, _is_configured
