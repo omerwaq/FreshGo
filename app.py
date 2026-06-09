@@ -627,8 +627,36 @@ async def local_chat(request: Request):
 
 @app.get("/api/wa/status")
 async def wa_status():
-    from whatsapp import _is_configured
-    return {"configured": _is_configured(), "mode": "api"}
+    import requests as req
+    instance = os.getenv("ULTRAMSG_INSTANCE", "")
+    token    = os.getenv("ULTRAMSG_TOKEN", "")
+
+    if not instance or not token:
+        return {"connected": False, "qr": None, "mode": "ultramsg", "configured": False}
+
+    try:
+        # Check instance status
+        r = req.get(
+            f"https://api.ultramsg.com/{instance}/instance/status",
+            params={"token": token}, timeout=10
+        )
+        data = r.json()
+        status = data.get("instance", {}).get("status", "")
+
+        if status == "authenticated":
+            return {"connected": True, "qr": None, "mode": "ultramsg", "configured": True}
+
+        # Not connected — fetch QR code
+        qr_r = req.get(
+            f"https://api.ultramsg.com/{instance}/instance/qr",
+            params={"token": token}, timeout=10
+        )
+        qr_data = qr_r.json()
+        qr_b64  = qr_data.get("qrCode", "").replace("data:image/png;base64,", "")
+        return {"connected": False, "qr": qr_b64 or None, "mode": "ultramsg", "configured": True}
+
+    except Exception as e:
+        return {"connected": False, "qr": None, "mode": "ultramsg", "configured": True, "error": str(e)}
 
 
 @app.post("/api/wa/register")
@@ -661,12 +689,15 @@ async def wa_register(request: Request):
 
 @app.post("/api/wa/send-bulk")
 async def wa_send_bulk(request: Request):
-    from whatsapp import send_whatsapp_message, _is_configured
+    import requests as req
 
-    if not _is_configured():
+    instance = os.getenv("ULTRAMSG_INSTANCE", "")
+    token    = os.getenv("ULTRAMSG_TOKEN", "")
+
+    if not instance or not token:
         return JSONResponse(status_code=503, content={
             "error": "not_configured",
-            "hint": "Add WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in Railway environment variables."
+            "hint": "Add ULTRAMSG_INSTANCE and ULTRAMSG_TOKEN in Railway environment variables."
         })
 
     data      = await request.json()
@@ -707,24 +738,30 @@ async def wa_send_bulk(request: Request):
         ).format(name=name, qty=qty_text)
         msg = msg.replace("[Name]", name).replace("[Litres]", qty_text).replace("[Product]", product)
 
-        result = await asyncio.to_thread(send_whatsapp_message, phone, msg)
-        meta_error = (result or {}).get("error", {})
-        if result and not meta_error:
-            sent += 1
-        else:
+        try:
+            r = req.post(
+                f"https://api.ultramsg.com/{instance}/messages/chat",
+                data={"token": token, "to": phone, "body": msg, "priority": 1},
+                timeout=15,
+            )
+            result = r.json()
+            if result.get("sent") == "true" or result.get("id"):
+                sent += 1
+            else:
+                failed += 1
+                errors.append(f"{name} ({phone}): {result}")
+        except Exception as e:
             failed += 1
-            err_msg = meta_error.get("message", str(result)) if isinstance(meta_error, dict) else str(result)
-            errors.append(f"{name} ({phone}): {err_msg}")
-            print(f"[WA Bulk] Failed {phone}: {err_msg}")
+            errors.append(f"{name} ({phone}): {e}")
 
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.5)
 
     return {
         "success": True,
         "sent":    sent,
         "failed":  failed,
         "summary": f"✅ {sent} messages sent, ❌ {failed} failed",
-        "errors":  errors[:5],   # first 5 errors so dashboard can show them
+        "errors":  errors[:5],
     }
 
 
