@@ -17,6 +17,8 @@ def start_scheduler():
     """Start the background scheduler. Call once at app startup."""
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone="Asia/Karachi")
+
+    # Publish pending scheduled posts every 60 s
     _scheduler.add_job(
         _publish_due_posts,
         trigger="interval",
@@ -24,8 +26,20 @@ def start_scheduler():
         id="publish_scheduled_posts",
         replace_existing=True,
     )
+
+    # Auto-generate + schedule weekly branded post every Sunday at 09:00 AM PKT
+    _scheduler.add_job(
+        _auto_generate_weekly_post,
+        trigger="cron",
+        day_of_week="sun",
+        hour=9,
+        minute=0,
+        id="weekly_auto_post",
+        replace_existing=True,
+    )
+
     _scheduler.start()
-    print("[Scheduler] Started — checking every 60 s for due posts ✅")
+    print("[Scheduler] Started — 60 s publish check + weekly Sunday 9 AM post ✅")
 
 
 def stop_scheduler():
@@ -83,6 +97,26 @@ async def _publish_one(post: dict):
 
     if tasks:
         await asyncio.gather(*tasks)
+
+
+# ── Weekly Auto-Post ──────────────────────────────────────────────────────────
+
+async def _auto_generate_weekly_post():
+    """Generate a creative weekly post and publish it directly to Facebook."""
+    from weekly_posts import generate_weekly_post
+    from facebook import publish_post
+
+    print("[Scheduler] Generating weekly branded post...")
+    try:
+        result = await generate_weekly_post()
+        post_text  = result["text"]
+        image_url  = result.get("image_url")
+        theme_slug = result.get("theme_slug", "unknown")
+
+        await asyncio.to_thread(publish_post, post_text, image_url)
+        print(f"[Scheduler] Weekly post published ✅ — theme: {theme_slug}")
+    except Exception as e:
+        print(f"[Scheduler] Weekly post FAILED: {e}")
 
 
 # ── Helper used by admin commands ─────────────────────────────────────────────

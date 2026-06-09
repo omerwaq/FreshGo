@@ -167,13 +167,14 @@ def _try_together(prompt: str) -> str | None:
         return None
 
 
-def _make_product_ad(product_image_path: str, prompt: str) -> str | None:
+def _make_product_ad(product_image_path: str, prompt: str,
+                     logo_path: str | None = None) -> str | None:
     """
     Composite the real product image onto an AI-generated background using Pillow.
-    This ensures the REAL packet always appears in the ad.
+    Optionally overlays the brand logo in the bottom-right corner.
     """
     try:
-        from PIL import Image, ImageFilter, ImageEnhance
+        from PIL import Image, ImageFilter
         import base64, io
 
         os.makedirs(STATIC_DIR, exist_ok=True)
@@ -194,7 +195,7 @@ def _make_product_ad(product_image_path: str, prompt: str) -> str | None:
         bg_full = os.path.join(os.path.dirname(__file__), bg_path.lstrip("/"))
         background = Image.open(bg_full).convert("RGBA").resize((1024, 1024))
 
-        # Resize product to fit nicely (60% of canvas height, centered)
+        # Resize product to fit nicely (65% of canvas height, centered)
         max_h = int(1024 * 0.65)
         ratio = max_h / product_img.height
         new_w = int(product_img.width * ratio)
@@ -211,6 +212,27 @@ def _make_product_ad(product_image_path: str, prompt: str) -> str | None:
         y = 1024 - max_h - 60
         background.paste(shadow, (x - 15, y - 15), shadow)
         background.paste(product_resized, (x, y), product_resized)
+
+        # Overlay brand logo in bottom-right corner
+        if logo_path and os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path).convert("RGBA")
+                logo_max = int(1024 * 0.18)          # 18% of canvas
+                logo_ratio = logo_max / max(logo.width, logo.height)
+                logo_w = int(logo.width  * logo_ratio)
+                logo_h = int(logo.height * logo_ratio)
+                logo = logo.resize((logo_w, logo_h), Image.LANCZOS)
+                # Semi-transparent
+                r, g, b, a = logo.split()
+                a = a.point(lambda v: int(v * 0.88))
+                logo = Image.merge("RGBA", (r, g, b, a))
+                margin = 24
+                lx = 1024 - logo_w - margin
+                ly = 1024 - logo_h - margin
+                background.paste(logo, (lx, ly), logo)
+                print("[Image] Logo overlaid on post")
+            except Exception as logo_err:
+                print(f"[Image] Logo overlay skipped: {logo_err}")
 
         # Save composite
         filename = f"post_{uuid.uuid4().hex[:8]}.jpg"

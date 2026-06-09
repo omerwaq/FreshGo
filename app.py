@@ -1,6 +1,6 @@
 import os
 import asyncio
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Query, UploadFile, File
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -477,6 +477,71 @@ async def api_delete_scheduled(post_id: int):
     return {"ok": True}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Brand Assets API
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/brand-assets")
+async def api_get_brand_assets():
+    from brand_assets import get_asset_urls
+    return get_asset_urls()
+
+
+@app.post("/api/brand-assets/logo")
+async def api_upload_logo(file: UploadFile = File(...)):
+    from brand_assets import save_logo
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+    data = await file.read()
+    url = save_logo(data, ext)
+    return {"ok": True, "logo_url": url}
+
+
+@app.post("/api/brand-assets/packet")
+async def api_upload_packet(file: UploadFile = File(...)):
+    from brand_assets import save_packet
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+    data = await file.read()
+    url = save_packet(data, ext)
+    return {"ok": True, "packet_url": url}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Weekly Posts API
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/api/weekly-post/generate")
+async def api_generate_weekly_post():
+    """Manually trigger a weekly post generation (for testing or on-demand)."""
+    from weekly_posts import generate_weekly_post
+    result = await generate_weekly_post()
+    return {
+        "ok":         True,
+        "theme_slug": result["theme_slug"],
+        "text":       result["text"],
+        "image_url":  result["image_url"],
+    }
+
+
+@app.post("/api/weekly-post/publish-now")
+async def api_publish_weekly_now():
+    """Generate + immediately publish this week's branded post to Facebook."""
+    from weekly_posts import generate_weekly_post
+    from facebook import publish_post
+    result = await generate_weekly_post()
+    await asyncio.to_thread(publish_post, result["text"], result["image_url"])
+    return {"ok": True, "theme_slug": result["theme_slug"], "text": result["text"]}
+
+
+@app.get("/api/weekly-post/themes")
+async def api_weekly_themes():
+    """Return the full list of 52 themes."""
+    from weekly_posts import WEEKLY_THEMES
+    from brand_assets import _load
+    cfg = _load()
+    current_idx = cfg.get("theme_index", 0) % len(WEEKLY_THEMES)
+    return {"themes": WEEKLY_THEMES, "next_index": current_idx}
+
+
 @app.post("/api/schedule-post")
 async def api_create_schedule(request: Request):
     body       = await request.json()
@@ -562,40 +627,33 @@ async def local_chat(request: Request):
 
 @app.get("/api/wa/status")
 async def wa_status():
-    try:
-        from wa_client import get_client
-        client = await get_client()
-        return {
-            "connected": client.is_ready,
-            "qr": client.qr_base64
-        }
-    except Exception as e:
-        return {"connected": False, "qr": None, "error": str(e)}
+    from whatsapp import _is_configured
+    return {"configured": _is_configured(), "mode": "api"}
 
 
 @app.post("/api/wa/send-bulk")
 async def wa_send_bulk(request: Request):
-    data = await request.json()
+    from whatsapp import send_whatsapp_message, _is_configured
+
+    if not _is_configured():
+        return JSONResponse(status_code=503, content={
+            "error": "not_configured",
+            "hint": "Add WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in Railway environment variables."
+        })
+
+    data      = await request.json()
     customers = data.get("customers", [])
-    template  = data.get("message", "")
+    template  = data.get("message", "").strip()
 
     if not customers:
-        return JSONResponse(status_code=400, content={"error": "No customers"})
-
-    try:
-        from wa_client import get_client
-        client = await get_client()
-        if not client.is_ready:
-            return JSONResponse(status_code=503, content={"error": "WhatsApp not connected. Scan QR first."})
-    except Exception as e:
-        return JSONResponse(status_code=503, content={"error": str(e)})
+        return JSONResponse(status_code=400, content={"error": "No customers provided"})
 
     sent, failed = 0, 0
     for c in customers:
-        phone    = str(c.get("phone","")).strip()
-        name     = c.get("name","Customer")
-        quantity = c.get("quantity","")
-        product  = c.get("product","doodh")
+        phone    = str(c.get("phone", "")).strip()
+        name     = c.get("name", "Customer")
+        quantity = c.get("quantity", "")
+        product  = c.get("product", "doodh")
         qty_text = f"{quantity} {product}".strip() if quantity else product
 
         if not phone:
@@ -603,20 +661,31 @@ async def wa_send_bulk(request: Request):
             continue
 
         msg = (template or
-            f"Assalam o Alaikum {name}! 🌿\n\n"
-            f"Aaj aapka {qty_text} Fresh Go doodh deliver ho gaya hai. "
-            f"100% pure, hormone-free cow milk 🐄\n\n"
-            f"Shukriya Fresh Go choose karne ke liye! ❤️\n"
-            f"Sawaal: 0300-3147887"
-        ).replace("[Name]", name).replace("[Litres]", qty_text).replace("[Product]", product)
+            "Assalam o Alaikum {name}! 🌿\n\n"
+            "Aaj aapka {qty} Fresh Go doodh deliver ho gaya hai. "
+            "100% pure, hormone-free cow milk 🐄\n\n"
+            "Shukriya Fresh Go choose karne ke liye! ❤️\n"
+            "Koi sawaal ho: 0300-3147887"
+        ).format(name=name, qty=qty_text)
 
-        ok = await client.send_message(phone, msg)
-        if ok: sent += 1
-        else:  failed += 1
-        await asyncio.sleep(2)
+        # Template placeholders
+        msg = msg.replace("[Name]", name).replace("[Litres]", qty_text).replace("[Product]", product)
 
-    return {"success": True, "sent": sent, "failed": failed,
-            "summary": f"✅ {sent} messages sent, ❌ {failed} failed"}
+        result = await asyncio.to_thread(send_whatsapp_message, phone, msg)
+        if result and "error" not in (result or {}):
+            sent += 1
+        else:
+            failed += 1
+            print(f"[WA Bulk] Failed for {phone}: {result}")
+
+        await asyncio.sleep(0.3)  # stay within Meta rate limits
+
+    return {
+        "success": True,
+        "sent":    sent,
+        "failed":  failed,
+        "summary": f"✅ {sent} messages sent, ❌ {failed} failed"
+    }
 
 
 @app.get("/api/todays-customers")
