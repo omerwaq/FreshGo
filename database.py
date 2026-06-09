@@ -225,6 +225,36 @@ def get_todays_customers() -> list:
     return rows
 
 
+def get_unpaid_customers() -> list:
+    """
+    Return one row per customer with unpaid/delivered orders.
+    Includes total_amount sum and list of order IDs.
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+        SELECT
+            name,
+            phone,
+            customer_id,
+            platform,
+            COUNT(*)            AS order_count,
+            GROUP_CONCAT(order_id, ', ')  AS order_ids,
+            SUM(CASE WHEN total_amount GLOB '[0-9]*' THEN CAST(total_amount AS INTEGER) ELSE 0 END) AS total_due
+        FROM orders
+        WHERE payment_status IN ('unpaid', 'pending', '')
+          AND status NOT IN ('cancelled')
+        GROUP BY COALESCE(NULLIF(phone,''), customer_id)
+        ORDER BY total_due DESC
+    """)
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    for row in rows:
+        if not row.get("phone") and row.get("platform") == "whatsapp":
+            row["phone"] = row.get("customer_id", "")
+    return rows
+
+
 def get_stats() -> dict:
     conn = get_conn()
     c = conn.cursor()

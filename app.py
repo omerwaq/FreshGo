@@ -641,6 +641,12 @@ async def todays_customers():
     return {"customers": customers}
 
 
+@app.get("/api/unpaid-customers")
+async def unpaid_customers():
+    from database import get_unpaid_customers
+    return {"customers": get_unpaid_customers()}
+
+
 @app.get("/api/export-customers")
 async def export_customers():
     """Download today's customers as Excel file."""
