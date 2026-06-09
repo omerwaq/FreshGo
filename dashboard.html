@@ -698,7 +698,7 @@ tr:hover td{background:#f9fdf9;}
             <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">DEFAULT MESSAGE (edit above to customize)</div>
             <div style="font-size:13px;color:#374151;white-space:pre-line;">Dear [Name], 🌿
 
-Your Fresh Go milk ([Litres]) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄
+Your Fresh Go order of [Litres] has been delivered today. 100% pure and natural — straight from our Nankana Sahib farm to your home. 🐄
 
 Thank you for choosing Fresh Go! ❤️
 Any questions? Call/WhatsApp: 0300-3147887</div>
@@ -871,8 +871,8 @@ function showTab(name, sbEl){
 let bulkCustomers = [];
 
 const MSG_TEMPLATES = {
-  delivery: `Dear [Name], 🌿\n\nYour Fresh Go milk ([Litres]) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄\n\nThank you for choosing Fresh Go! ❤️\nAny questions? Call/WhatsApp: 0300-3147887`,
-  nodelivery: `Dear [Name], 🙏\n\nUnfortunately, we are unable to deliver your milk today due to unforeseen circumstances. We sincerely apologize for the inconvenience.\n\nYour order ([Litres]) will be delivered tomorrow, InshAllah. Thank you for your patience. 🐄\n— Fresh Go: 0300-3147887`,
+  delivery: `Dear [Name], 🌿\n\nYour Fresh Go order of [Litres] has been delivered today. 100% pure and natural — straight from our Nankana Sahib farm to your home. 🐄\n\nThank you for choosing Fresh Go! ❤️\nAny questions? Call/WhatsApp: 0300-3147887`,
+  nodelivery: `Dear [Name], 🙏\n\nUnfortunately, we are unable to deliver your order of [Litres] today due to unforeseen circumstances. We sincerely apologize for the inconvenience.\n\nYour delivery will resume tomorrow, InshAllah. Thank you for your patience. 🐄\n— Fresh Go: 0300-3147887`,
   price: `Dear [Name], 📢\n\nWe would like to inform you that our milk price has been updated to [PRICE] per litre.\n\nYour daily order of [Litres] will now be [TOTAL]. Thank you for your continued trust! 🐄\n— Fresh Go: 0300-3147887`,
   bill: `Dear [Name], 🧾\n\nYour Fresh Go bill up to [DATE] is Rs. [AMOUNT].\n\nPlease make your payment at your earliest convenience.\nJazzCash/EasyPaisa: 0300-3147887\n\nThank you! 🐄 — Fresh Go`,
   holiday: `Dear [Name], 🎉\n\nPlease note that milk delivery will be suspended on [DATE] due to [HOLIDAY].\n\nYour delivery will resume normally the following day. Thank you for your understanding! 🐄\n— Fresh Go: 0300-3147887`,

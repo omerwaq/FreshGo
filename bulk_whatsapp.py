@@ -22,7 +22,7 @@ SESSION_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsa
 
 DEFAULT_MESSAGE = """Dear {name}, 🌿
 
-Your Fresh Go milk ({quantity}) has been delivered today. 100% pure, hormone-free cow milk — straight from our Nankana Sahib farm to your home. 🐄
+Your Fresh Go {product} ({qty}) has been delivered today. 100% pure and natural — straight from our Nankana Sahib farm to your home. 🐄
 
 Thank you for choosing Fresh Go! ❤️
 Any questions? Call/WhatsApp: 0300-3147887"""
@@ -168,10 +168,15 @@ def send_messages(customers: list, message_template: str):
         name     = c.get("name", "Customer")
         phone    = c["phone"]
         quantity = c.get("quantity", "")
-        product  = c.get("product", "doodh")
+        product  = c.get("product", "milk")
         qty_text = f"{quantity} {product}".strip() if quantity else product
 
-        msg = message_template.format(name=name, quantity=qty_text, product=product)
+        msg = message_template.format(
+            name=name,
+            product=product,       # e.g. "desi ghee" or "milk"
+            qty=quantity or "1",   # just the number: "4"
+            quantity=qty_text,     # combined: "4 desi ghee" (for [Litres] placeholder)
+        )
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
 
