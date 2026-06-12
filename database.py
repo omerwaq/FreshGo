@@ -9,8 +9,19 @@ import json
 import os
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "freshgo.db")
+# Use Railway persistent volume (/data) when available — survives all redeploys
+_BASE = "/data" if os.path.isdir("/data") else os.path.dirname(__file__)
+DB_PATH     = os.path.join(_BASE, "freshgo.db")
 ORDERS_JSON = os.path.join(os.path.dirname(__file__), "orders.json")
+
+def _ensure_db_seeded():
+    """On first run with Railway volume, copy the committed DB so we keep existing data."""
+    if _BASE == "/data" and not os.path.exists(DB_PATH):
+        seed = os.path.join(os.path.dirname(__file__), "freshgo.db")
+        if seed != DB_PATH and os.path.exists(seed):
+            import shutil
+            shutil.copy2(seed, DB_PATH)
+            print(f"[DB] Seeded volume DB from committed freshgo.db")
 
 
 def get_conn() -> sqlite3.Connection:
@@ -21,6 +32,7 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db():
+    _ensure_db_seeded()
     conn = get_conn()
     c = conn.cursor()
 
