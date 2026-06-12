@@ -587,11 +587,13 @@ async def api_weekly_themes():
 
 @app.post("/api/schedule-post")
 async def api_create_schedule(request: Request):
-    body       = await request.json()
-    topic      = body.get("topic", "").strip()
-    platform   = body.get("platform", "facebook")
-    post_type  = body.get("post_type", "image")
-    sched_time = body.get("scheduled_time", "")  # "YYYY-MM-DD HH:MM"
+    body         = await request.json()
+    topic        = body.get("topic", "").strip()
+    platform     = body.get("platform", "facebook")
+    post_type    = body.get("post_type", "image")
+    sched_time   = body.get("scheduled_time", "")
+    aspect_ratio = body.get("aspect_ratio", "square")
+    campaign     = body.get("campaign", "default")
 
     if not topic or not sched_time:
         return JSONResponse(status_code=400,
@@ -599,15 +601,16 @@ async def api_create_schedule(request: Request):
 
     if post_type == "video":
         from video_gen import generate_video_ad
-        media    = await generate_video_ad(topic)
-        post_res = await generate_post(topic)
+        media      = await generate_video_ad(topic)
+        post_res   = await generate_post(topic)
         image_path = media.get("image_url")
         video_path = media.get("video_url")
         post_text  = post_res["text"]
     else:
-        post_res  = await generate_post(topic)
-        post_text = post_res["text"]
-        image_path = post_res.get("image_url")
+        from image_gen import fetch_and_save_image
+        post_res   = await generate_post(topic)
+        post_text  = post_res["text"]
+        image_path = await fetch_and_save_image(topic, aspect_ratio, campaign)
         video_path = None
 
     post_id = create_scheduled_post(
@@ -617,6 +620,38 @@ async def api_create_schedule(request: Request):
     )
     return {"ok": True, "post_id": post_id, "preview_text": post_text,
             "image_url": image_path}
+
+
+@app.post("/api/generate-image")
+async def api_generate_image(request: Request):
+    """Standalone image generation — no scheduling. Returns image URL immediately."""
+    body         = await request.json()
+    topic        = body.get("topic", "").strip()
+    aspect_ratio = body.get("aspect_ratio", "square")
+    campaign     = body.get("campaign", "default")
+
+    from image_gen import fetch_and_save_image, CAMPAIGN_TEMPLATES, ASPECT_RATIOS
+    image_url = await fetch_and_save_image(topic, aspect_ratio, campaign)
+    if not image_url:
+        return JSONResponse(status_code=500, content={"error": "Image generation failed"})
+    dims = ASPECT_RATIOS.get(aspect_ratio, ASPECT_RATIOS["square"])
+    return {
+        "ok": True,
+        "image_url":    image_url,
+        "aspect_ratio": aspect_ratio,
+        "width":        dims["width"],
+        "height":       dims["height"],
+    }
+
+
+@app.get("/api/brand/templates")
+async def api_brand_templates():
+    """Return campaign templates and aspect ratio options for the UI."""
+    from image_gen import CAMPAIGN_TEMPLATES, ASPECT_RATIOS
+    return {
+        "templates":    {k: {"label": v["label"]} for k, v in CAMPAIGN_TEMPLATES.items()},
+        "aspect_ratios": ASPECT_RATIOS,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -5,50 +5,151 @@ import uuid
 import time
 import random
 
-POLLINATIONS_URL = "https://image.pollinations.ai/prompt/{prompt}"
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static", "images")
 
-# Fresh Go brand identity for the AI image prompter
-FRESH_GO_BRAND = """
-Brand: Fresh Go — a premium dairy farm from Nankana Sahib, Pakistan
-Products: Pure cow milk (250 rs/litre) and desi ghee
-Brand colors: Deep green and white
-Vibe: Clean, natural, trustworthy, farm-fresh, Pakistani family values
-Style: Warm golden light, lush green farm backgrounds, glass bottles of fresh milk,
-       happy healthy cows, traditional Pakistani countryside feel
+# ── FreshGo Brand Identity ─────────────────────────────────────────────────────
+
+FRESHGO_DEFAULT_IMAGE_PROMPT = (
+    "Create a premium Facebook advertisement for FreshGo dairy products. "
+    "Show fresh milk bottles, yogurt, and dairy products in a clean modern setting "
+    "with blue and white branding. Use ultra-realistic commercial photography, "
+    "professional lighting, healthy family-friendly atmosphere, and a trustworthy "
+    "premium dairy brand aesthetic. Include space for promotional text and the "
+    "FreshGo logo. High-resolution, social-media-ready, realistic advertising style."
+)
+
+FRESHGO_DEFAULT_VIDEO_PROMPT = (
+    "Create a 15-30 second cinematic FreshGo dairy advertisement. "
+    "Show fresh milk pouring into a glass, dairy farm scenes at sunrise, "
+    "yogurt preparation, delivery to homes, and happy customers. "
+    "Use smooth camera movements, premium lighting, blue and white branding, "
+    "modern commercial style, uplifting background music, and clear space for "
+    "FreshGo branding and offer text. Format for Facebook and Instagram Reels (9:16)."
+)
+
+# ── Reusable Campaign Templates ────────────────────────────────────────────────
+
+CAMPAIGN_TEMPLATES = {
+    "default": {
+        "label": "✨ Default Brand Ad",
+        "prompt": FRESHGO_DEFAULT_IMAGE_PROMPT,
+    },
+    "daily_milk": {
+        "label": "🥛 Daily Milk Promotion",
+        "prompt": (
+            "Premium FreshGo fresh milk promotion: chilled glass milk bottles with "
+            "condensation on a clean white marble surface, morning soft light, "
+            "blue and white FreshGo branding elements, ultra-realistic DSLR product "
+            "photography, pristine white background with blue accent, appetizing "
+            "dairy ad, professional studio lighting, 8K sharp focus, photorealistic."
+        ),
+    },
+    "yogurt": {
+        "label": "🫙 Yogurt Promotion",
+        "prompt": (
+            "FreshGo fresh thick creamy yogurt in a premium white ceramic bowl, "
+            "fresh berries and honey drizzle, clean blue and white brand styling, "
+            "top-down professional food photography, soft natural morning light, "
+            "modern kitchen counter setting, ultra-realistic commercial dairy ad, "
+            "8K sharp focus, photorealistic, award-winning food photography."
+        ),
+    },
+    "morning_delivery": {
+        "label": "🌅 Fresh Morning Delivery",
+        "prompt": (
+            "FreshGo dairy morning delivery scene: fresh milk bottles on a doorstep "
+            "at golden sunrise hour, Pakistani neighborhood, blue and white branded "
+            "delivery bag, dew on cold glass bottles, warm cinematic golden light, "
+            "ultra-realistic commercial photography, trust and freshness mood, "
+            "8K DSLR, photorealistic advertising style."
+        ),
+    },
+    "farm_to_home": {
+        "label": "🏡 Farm to Home Branding",
+        "prompt": (
+            "FreshGo farm-to-home story: lush green dairy farm at sunrise in "
+            "Pakistan with healthy cows, connected visually to a clean modern "
+            "Pakistani home kitchen with fresh milk, blue and white branding "
+            "throughout, wide cinematic shot, ultra-realistic commercial photography, "
+            "family-friendly premium dairy brand, 8K photorealistic."
+        ),
+    },
+    "eid_seasonal": {
+        "label": "🌙 Eid / Seasonal Promotion",
+        "prompt": (
+            "Festive Eid celebration scene with FreshGo fresh dairy products as "
+            "centerpiece: premium milk, yogurt, sweets on a beautifully decorated "
+            "Pakistani family table, gold and blue decorations, warm celebratory "
+            "lighting, blue and white FreshGo branding, ultra-realistic commercial "
+            "photography, premium festive dairy advertisement, 8K photorealistic."
+        ),
+    },
+    "trust_quality": {
+        "label": "🏆 Trust & Quality Campaign",
+        "prompt": (
+            "FreshGo premium quality assurance: gleaming stainless steel dairy "
+            "facility, fresh pure white milk being poured into clean glass bottles, "
+            "blue and white branding, laboratory-clean modern environment, quality "
+            "seal visible, ultra-realistic commercial photography, trustworthy "
+            "premium dairy brand aesthetic, 8K DSLR photorealistic."
+        ),
+    },
+}
+
+# ── Platform Aspect Ratios ────────────────────────────────────────────────────
+
+ASPECT_RATIOS = {
+    "square":   {"width": 1080, "height": 1080, "label": "1:1 Square — Facebook Post"},
+    "portrait": {"width": 1080, "height": 1350, "label": "4:5 Portrait — Instagram Post"},
+    "story":    {"width": 1080, "height": 1920, "label": "9:16 Vertical — Stories & Reels"},
+    "banner":   {"width": 1920, "height": 1080, "label": "16:9 Landscape — Banner & Ads"},
+}
+
+# ── Image System Prompt ────────────────────────────────────────────────────────
+
+IMAGE_SYSTEM_PROMPT = """
+You are an expert AI image prompt engineer for FreshGo — a premium Pakistani dairy brand.
+Given a campaign topic and base prompt, enhance it with precise technical photography details.
+
+FreshGo Brand Rules (MANDATORY — never break these):
+- Brand name: FreshGo | Colors: Royal blue (#0056D2) and clean white
+- Always include: fresh milk bottles or dairy products as the hero subject
+- Always include: clean modern kitchen, dairy farm, or professional studio setting
+- Style: Ultra-realistic DSLR commercial photography — NOT cartoon, NOT anime, NOT fantasy
+- Mood: Trustworthy, premium, family-friendly, professional Pakistani dairy brand ad
+- End every prompt with: ultra-sharp 8K, Canon EOS DSLR, professional studio lighting, photorealistic
+
+NEVER generate: cartoons, anime, fantasy, sci-fi, abstract art, celebrities,
+random unrelated people, unrelated objects, distorted or low-quality images.
+
+Output ONLY the enhanced image prompt (under 130 words). No explanation, no quotes.
 """
 
-IMAGE_SYSTEM_PROMPT = f"""
-You are an expert AI image prompt engineer for the dairy brand "Fresh Go".
-Given a post topic, write ONE highly detailed image generation prompt.
 
-Brand context:
-{FRESH_GO_BRAND}
+def generate_image_prompt_via_ai(topic: str, campaign: str = "default") -> str:
+    """Use Groq to enhance a brand-specific image prompt for the topic."""
+    template = CAMPAIGN_TEMPLATES.get(campaign, CAMPAIGN_TEMPLATES["default"])
+    base_prompt = template["prompt"]
 
-STRICT BRAND RULES — non-negotiable:
-- Style: DSLR product photography, studio lighting, ultra-realistic — NOT AI-looking, NOT surreal, NOT fantasy
-- Subject: fresh white milk in glass bottle OR dairy products (ghee, curd) as main hero — clearly visible and appetizing
-- Setting: clean white or soft green studio background, OR lush Pakistani green farm at golden hour
-- NO hands holding products unnaturally, NO weird distortions, NO text on products
-- Colors: clean white milk, deep green accents, warm golden light
-- Mood: premium, trustworthy, fresh, healthy — like a professional Pakistani dairy brand ad
-- End with: ultra sharp, 8K, Canon EOS product photography, studio lighting, photorealistic
-- Under 100 words — output ONLY the prompt, no quotes, no explanation
-"""
+    # If the topic adds custom detail, include it; otherwise just use the template
+    user_message = (
+        f"Base campaign prompt: {base_prompt}\n"
+        f"Custom topic to incorporate: {topic}"
+        if topic.strip() else f"Base campaign prompt: {base_prompt}"
+    )
 
-
-def generate_image_prompt_via_ai(topic: str) -> str:
-    """Use Groq to write a smart, brand-specific image prompt for the topic."""
     try:
         from groq import Groq
         from dotenv import load_dotenv
         load_dotenv()
 
-        # Load saved brand profile if available
         try:
             from brand_analyzer import load_brand_profile
             brand_profile = load_brand_profile()
-            brand_context = f"\n\nSAVED BRAND PROFILE (from Facebook page analysis — follow this closely):\n{brand_profile}" if brand_profile else ""
+            brand_context = (
+                f"\n\nSAVED BRAND PROFILE (follow this closely):\n{brand_profile}"
+                if brand_profile else ""
+            )
         except Exception:
             brand_context = ""
 
@@ -57,10 +158,10 @@ def generate_image_prompt_via_ai(topic: str) -> str:
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": IMAGE_SYSTEM_PROMPT + brand_context},
-                {"role": "user", "content": f"Post topic: {topic}"}
+                {"role": "user",   "content": user_message}
             ],
-            max_tokens=180,
-            temperature=0.85,
+            max_tokens=200,
+            temperature=0.8,
         )
         prompt = response.choices[0].message.content.strip()
         print(f"[Image Prompt] {prompt}")
@@ -68,25 +169,19 @@ def generate_image_prompt_via_ai(topic: str) -> str:
 
     except Exception as e:
         print(f"[Image Prompt Fallback] {e}")
-        # Fallback prompt if Groq fails
-        return (
-            f"Fresh Go dairy farm Pakistan: {topic}, fresh white cow milk in glass bottle, "
-            "lush green fields, warm golden morning light, traditional clay pot, "
-            "happy healthy cows, clean white background, "
-            "professional food photography, 4K, sharp focus, photorealistic, award winning"
-        )
+        return base_prompt + f", {topic}" if topic.strip() else base_prompt
 
 
-def _try_pollinations(prompt: str) -> str | None:
+def _try_pollinations(prompt: str, width: int = 1080, height: int = 1080) -> str | None:
     """Generate AI image via Pollinations (FLUX model) with retries."""
     encoded = urllib.parse.quote(prompt, safe='')
     for attempt in range(6):
         seed = random.randint(1, 999999)
         url = (
             f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?model=flux&width=1024&height=1024&nologo=true&seed={seed}"
+            f"?model=flux&width={width}&height={height}&nologo=true&seed={seed}"
         )
-        print(f"[Image] Pollinations attempt {attempt+1}: seed={seed}")
+        print(f"[Image] Pollinations attempt {attempt+1}: seed={seed} {width}x{height}")
         try:
             response = requests.get(url, timeout=120)
             ctype = response.headers.get("content-type", "")
@@ -107,7 +202,7 @@ def _try_pollinations(prompt: str) -> str | None:
     return None
 
 
-def _try_together(prompt: str) -> str | None:
+def _try_together(prompt: str, width: int = 1080, height: int = 1080) -> str | None:
     """Generate AI image via Together AI — FLUX.1-schnell-Free (no cost)."""
     from dotenv import load_dotenv
     load_dotenv()
@@ -116,7 +211,10 @@ def _try_together(prompt: str) -> str | None:
         print("[Image] No TOGETHER_API_KEY set")
         return None
 
-    print("[Image] Trying Together AI FLUX.1-schnell-Free...")
+    # Together AI requires dimensions to be multiples of 32
+    w = max(512, (width  // 32) * 32)
+    h = max(512, (height // 32) * 32)
+    print(f"[Image] Trying Together AI FLUX.1-schnell-Free {w}x{h}...")
     try:
         response = requests.post(
             "https://api.together.xyz/v1/images/generations",
@@ -127,8 +225,8 @@ def _try_together(prompt: str) -> str | None:
             json={
                 "model": "black-forest-labs/FLUX.1-schnell",
                 "prompt": prompt,
-                "width": 1024,
-                "height": 1024,
+                "width": w,
+                "height": h,
                 "steps": 4,
                 "n": 1,
             },
@@ -246,18 +344,26 @@ def _make_product_ad(product_image_path: str, prompt: str,
         return None
 
 
-def _download_and_save(prompt: str) -> str | None:
-    """Generate AI image via Together AI."""
+def _download_and_save(prompt: str, width: int = 1080, height: int = 1080) -> str | None:
+    """Generate AI image — Together AI primary, Pollinations fallback."""
     os.makedirs(STATIC_DIR, exist_ok=True)
-    return _try_together(prompt)
+    result = _try_together(prompt, width, height)
+    if result:
+        return result
+    print("[Image] Together AI failed — trying Pollinations fallback...")
+    return _try_pollinations(prompt, width, height)
 
 
-async def fetch_and_save_image(topic: str) -> str | None:
-    """Async: generate smart prompt via Groq, then generate image via Together AI."""
+async def fetch_and_save_image(topic: str, aspect_ratio: str = "square",
+                                campaign: str = "default") -> str | None:
+    """Async: generate brand prompt via Groq, then generate image at requested aspect ratio."""
     try:
         import asyncio
-        prompt = generate_image_prompt_via_ai(topic)
-        local_url = await asyncio.to_thread(_download_and_save, prompt)
+        dims   = ASPECT_RATIOS.get(aspect_ratio, ASPECT_RATIOS["square"])
+        prompt = generate_image_prompt_via_ai(topic, campaign)
+        local_url = await asyncio.to_thread(
+            _download_and_save, prompt, dims["width"], dims["height"]
+        )
         return local_url
     except Exception as e:
         print(f"[Image Error] {e}")

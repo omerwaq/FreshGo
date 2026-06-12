@@ -334,6 +334,23 @@ tr:hover td{background:#f9fdf9;}
 .preview-text{font-size:13.5px;color:var(--text);line-height:1.6;white-space:pre-wrap;}
 .preview-img{width:100%;border-radius:10px;margin-top:12px;max-height:200px;object-fit:cover;}
 
+/* ── Image Studio ─────────────────────────────────────────────────────── */
+.tpl-btn{
+  padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;
+  border:1.5px solid var(--border);background:#fff;color:var(--text);
+  transition:all .15s;white-space:nowrap;
+}
+.tpl-btn:hover{border-color:#0056D2;color:#0056D2;}
+.tpl-btn.active{background:#0056D2;color:#fff;border-color:#0056D2;}
+.fmt-card{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border:1.5px solid var(--border);border-radius:10px;cursor:pointer;
+  background:#fff;transition:all .15s;
+}
+.fmt-card:hover{border-color:#0056D2;}
+.fmt-card.active{border-color:#0056D2;background:#eff6ff;}
+.fmt-icon{flex-shrink:0;}
+
 /* ── TOAST ───────────────────────────────────────────────────────────── */
 .toast{
   position:fixed;bottom:28px;right:28px;z-index:9999;
@@ -542,33 +559,130 @@ tr:hover td{background:#f9fdf9;}
 
     <!-- CREATE POST TAB -->
     <div id="tab-create" style="display:none;">
+
+      <!-- ── Image Studio ──────────────────────────────────────────────── -->
+      <div class="section-card" style="margin-bottom:18px;">
+        <div style="padding:18px 22px 0;">
+          <div style="font-size:17px;font-weight:800;color:var(--text);">🎨 FreshGo Image Studio</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px;">Generate brand-consistent ads in seconds — blue &amp; white, ultra-realistic, social-ready</div>
+        </div>
+
+        <!-- Campaign Templates -->
+        <div style="padding:18px 22px 0;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Campaign Template</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="template-picker">
+            <button class="tpl-btn active" data-tpl="default"       onclick="selectTemplate(this,'default')">✨ Default Brand Ad</button>
+            <button class="tpl-btn"        data-tpl="daily_milk"    onclick="selectTemplate(this,'daily_milk')">🥛 Daily Milk</button>
+            <button class="tpl-btn"        data-tpl="yogurt"        onclick="selectTemplate(this,'yogurt')">🫙 Yogurt</button>
+            <button class="tpl-btn"        data-tpl="morning_delivery" onclick="selectTemplate(this,'morning_delivery')">🌅 Morning Delivery</button>
+            <button class="tpl-btn"        data-tpl="farm_to_home"  onclick="selectTemplate(this,'farm_to_home')">🏡 Farm to Home</button>
+            <button class="tpl-btn"        data-tpl="eid_seasonal"  onclick="selectTemplate(this,'eid_seasonal')">🌙 Eid / Seasonal</button>
+            <button class="tpl-btn"        data-tpl="trust_quality" onclick="selectTemplate(this,'trust_quality')">🏆 Trust &amp; Quality</button>
+          </div>
+        </div>
+
+        <!-- Format / Aspect Ratio -->
+        <div style="padding:14px 22px 0;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Format &amp; Platform</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <label class="fmt-card active" data-fmt="square">
+              <input type="radio" name="aspect" value="square" checked style="display:none;"/>
+              <div class="fmt-icon" style="width:38px;height:38px;background:#dbeafe;border-radius:6px;"></div>
+              <div class="fmt-info">
+                <div style="font-weight:700;font-size:13px;">1:1 Square</div>
+                <div style="font-size:11px;color:var(--muted);">Facebook Post</div>
+              </div>
+            </label>
+            <label class="fmt-card" data-fmt="portrait">
+              <input type="radio" name="aspect" value="portrait" style="display:none;"/>
+              <div class="fmt-icon" style="width:30px;height:38px;background:#dbeafe;border-radius:5px;"></div>
+              <div class="fmt-info">
+                <div style="font-weight:700;font-size:13px;">4:5 Portrait</div>
+                <div style="font-size:11px;color:var(--muted);">Instagram Post</div>
+              </div>
+            </label>
+            <label class="fmt-card" data-fmt="story">
+              <input type="radio" name="aspect" value="story" style="display:none;"/>
+              <div class="fmt-icon" style="width:22px;height:38px;background:#dbeafe;border-radius:4px;"></div>
+              <div class="fmt-info">
+                <div style="font-weight:700;font-size:13px;">9:16 Vertical</div>
+                <div style="font-size:11px;color:var(--muted);">Stories · Reels · TikTok</div>
+              </div>
+            </label>
+            <label class="fmt-card" data-fmt="banner">
+              <input type="radio" name="aspect" value="banner" style="display:none;"/>
+              <div class="fmt-icon" style="width:60px;height:34px;background:#dbeafe;border-radius:5px;"></div>
+              <div class="fmt-info">
+                <div style="font-weight:700;font-size:13px;">16:9 Banner</div>
+                <div style="font-size:11px;color:var(--muted);">Ads · Cover Photos</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Quick Generate -->
+        <div style="padding:16px 22px 20px;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Custom Topic <span style="font-weight:400;text-transform:none;">(optional — leave blank to use template)</span></div>
+          <div style="display:flex;gap:10px;">
+            <input id="quick-topic" type="text" placeholder="e.g. Eid special 20% off, morning fresh delivery..."
+              style="flex:1;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;outline:none;font-family:inherit;"/>
+            <button id="quick-gen-btn" onclick="quickGenerateImage()"
+              style="padding:11px 22px;background:linear-gradient(135deg,#0056D2,#1d4ed8);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 3px 12px rgba(0,86,210,.35);">
+              ⚡ Generate Image
+            </button>
+          </div>
+          <!-- Preview -->
+          <div id="studio-preview" style="display:none;margin-top:16px;">
+            <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+              <div id="studio-img-wrap" style="position:relative;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.12);flex-shrink:0;">
+                <img id="studio-img" src="" style="display:block;max-width:280px;max-height:280px;object-fit:cover;"/>
+                <div style="position:absolute;bottom:8px;right:8px;">
+                  <a id="studio-download" href="#" download="freshgo-ad.jpg"
+                    style="background:rgba(0,0,0,.6);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;backdrop-filter:blur(4px);">
+                    ⬇ Download
+                  </a>
+                </div>
+              </div>
+              <div style="flex:1;min-width:160px;">
+                <div style="font-size:12px;font-weight:700;color:var(--acc2);margin-bottom:6px;">✅ Image Generated!</div>
+                <div id="studio-meta" style="font-size:12.5px;color:var(--muted);line-height:1.7;"></div>
+                <button onclick="useInPost()" style="margin-top:12px;padding:9px 16px;background:#f0fdf4;color:var(--acc2);border:1.5px solid var(--acc);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+                  📅 Use in Scheduled Post →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Schedule Post ───────────────────────────────────────────────── -->
       <div class="section-card">
         <div class="sc-header">
-          <div class="sc-title">➕ Schedule New Post / Video Ad</div>
+          <div class="sc-title">📅 Schedule &amp; Publish</div>
         </div>
         <div class="create-form">
           <div class="form-grid">
             <div class="form-group" style="grid-column:1/-1;">
-              <label>Topic / Description</label>
-              <textarea id="new-topic" placeholder="e.g.  Eid special — 20% off fresh milk 🎉 Limited time offer!"></textarea>
+              <label>Topic / Caption</label>
+              <textarea id="new-topic" placeholder="e.g. Eid special — 20% off fresh milk 🎉"></textarea>
             </div>
             <div class="form-group">
               <label>Post Type</label>
               <select id="new-type">
-                <option value="image">🖼️  Image Post</option>
-                <option value="video">🎬  HD Video Ad</option>
+                <option value="image">🖼️ Image Post</option>
+                <option value="video">🎬 HD Video Ad</option>
               </select>
             </div>
             <div class="form-group">
               <label>Platform</label>
               <select id="new-platform">
-                <option value="both">📘📸  Facebook + Instagram</option>
-                <option value="facebook">📘  Facebook Only</option>
-                <option value="instagram">📸  Instagram Only</option>
+                <option value="both">📘📸 Facebook + Instagram</option>
+                <option value="facebook">📘 Facebook Only</option>
+                <option value="instagram">📸 Instagram Only</option>
               </select>
             </div>
             <div class="form-group" style="grid-column:1/-1;">
-              <label>Scheduled Date & Time</label>
+              <label>Scheduled Date &amp; Time</label>
               <input type="datetime-local" id="new-datetime"/>
             </div>
           </div>
@@ -579,29 +693,6 @@ tr:hover td{background:#f9fdf9;}
             <div class="preview-label">✅ Scheduled Successfully!</div>
             <div class="preview-text" id="preview-text"></div>
             <img id="preview-img" class="preview-img" style="display:none;"/>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tips card -->
-      <div class="section-card" style="margin-top:16px;">
-        <div class="sc-header"><div class="sc-title">💡 Quick Tips</div></div>
-        <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;border:1px solid #bbf7d0;">
-            <div style="font-size:11px;font-weight:700;color:#059669;margin-bottom:4px;">IMAGE POST</div>
-            <div style="font-size:12.5px;color:#374151;">AI generates post text + brand image via Pollinations</div>
-          </div>
-          <div style="background:#eff6ff;border-radius:10px;padding:12px 14px;border:1px solid #bfdbfe;">
-            <div style="font-size:11px;font-weight:700;color:#2563eb;margin-bottom:4px;">VIDEO AD</div>
-            <div style="font-size:12.5px;color:#374151;">Creates 3 images → HD 1080×1080 MP4 slideshow with overlays</div>
-          </div>
-          <div style="background:#fefce8;border-radius:10px;padding:12px 14px;border:1px solid #fde68a;">
-            <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px;">SCHEDULER</div>
-            <div style="font-size:12.5px;color:#374151;">Auto-publishes at exact date &amp; time. Checks every 60 seconds.</div>
-          </div>
-          <div style="background:#fdf4ff;border-radius:10px;padding:12px 14px;border:1px solid #e9d5ff;">
-            <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px;">INSTAGRAM</div>
-            <div style="font-size:12.5px;color:#374151;">Requires public BASE_URL in .env for media hosting</div>
           </div>
         </div>
       </div>
@@ -1650,6 +1741,87 @@ document.getElementById('add-user-modal').addEventListener('click', function(e){
 
 // init on load
 initUser();
+
+// ── Image Studio ──────────────────────────────────────────────────────────────
+
+let studioTemplate    = 'default';
+let studioAspectRatio = 'square';
+let studioLastImgUrl  = '';
+
+function selectTemplate(btn, key){
+  document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  studioTemplate = key;
+}
+
+document.querySelectorAll('.fmt-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.fmt-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    studioAspectRatio = card.dataset.fmt;
+    card.querySelector('input[type=radio]').checked = true;
+  });
+});
+
+async function quickGenerateImage(){
+  const btn   = document.getElementById('quick-gen-btn');
+  const topic = document.getElementById('quick-topic').value.trim();
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+  document.getElementById('studio-preview').style.display = 'none';
+
+  const LABELS = {
+    square:'1:1 Square — Facebook Post',portrait:'4:5 Portrait — Instagram',
+    story:'9:16 Vertical — Stories/Reels/TikTok',banner:'16:9 Banner — Ads'
+  };
+  const TPL_LABELS = {
+    default:'✨ Default Brand Ad',daily_milk:'🥛 Daily Milk Promotion',
+    yogurt:'🫙 Yogurt Promotion',morning_delivery:'🌅 Morning Delivery',
+    farm_to_home:'🏡 Farm to Home',eid_seasonal:'🌙 Eid/Seasonal',
+    trust_quality:'🏆 Trust & Quality'
+  };
+
+  try{
+    const r = await fetch('/api/generate-image',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({topic, aspect_ratio:studioAspectRatio, campaign:studioTemplate})
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||'Generation failed');
+    studioLastImgUrl = d.image_url;
+    const img = document.getElementById('studio-img');
+    img.src = d.image_url;
+    document.getElementById('studio-download').href = d.image_url;
+    document.getElementById('studio-meta').innerHTML =
+      `<b>Template:</b> ${TPL_LABELS[studioTemplate]||studioTemplate}<br>` +
+      `<b>Format:</b> ${LABELS[studioAspectRatio]||studioAspectRatio}<br>` +
+      `<b>Size:</b> ${d.width}×${d.height}px`;
+
+    // Adjust preview aspect ratio
+    const wrap = document.getElementById('studio-img-wrap');
+    const ratioMap = {square:'280px',portrait:'224px',story:'158px',banner:'280px'};
+    const heightMap = {square:'280px',portrait:'280px',story:'280px',banner:'158px'};
+    img.style.maxWidth  = ratioMap[studioAspectRatio]  || '280px';
+    img.style.maxHeight = heightMap[studioAspectRatio] || '280px';
+
+    document.getElementById('studio-preview').style.display = 'block';
+    toast('Image generated ✅');
+  }catch(e){
+    toast('Error: '+e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '⚡ Generate Image';
+  }
+}
+
+function useInPost(){
+  // Pre-fill the schedule form with selected settings
+  showTab('create', document.querySelector('.sb-item[onclick*="create"]'));
+  const topicEl = document.getElementById('new-topic');
+  if(topicEl && !topicEl.value) topicEl.value = document.getElementById('quick-topic').value;
+  // Scroll to schedule section
+  document.querySelector('.create-form')?.scrollIntoView({behavior:'smooth'});
+}
 </script>
 </body>
 </html>

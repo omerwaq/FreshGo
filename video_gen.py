@@ -14,11 +14,11 @@ STATIC_DIR  = os.path.join(os.path.dirname(__file__), "static")
 VIDEOS_DIR  = os.path.join(STATIC_DIR, "videos")
 IMAGES_DIR  = os.path.join(STATIC_DIR, "images")
 
-# Fresh Go brand colors
-GREEN  = (34, 139, 34)
-WHITE  = (255, 255, 255)
-BLACK  = (0, 0, 0)
-OVERLAY_BG = (0, 0, 0, 170)   # semi-transparent black for text band
+# FreshGo brand colors — blue and white
+BRAND_BLUE = (0, 86, 210)      # #0056D2 royal blue
+WHITE      = (255, 255, 255)
+BLACK      = (0, 0, 0)
+OVERLAY_BG = (0, 20, 60, 180)  # deep blue-tinted semi-transparent overlay
 
 
 def _get_font(size: int):
@@ -54,7 +54,7 @@ def _add_text_overlay(img, title: str, subtitle: str, cta: str):
     draw_o.rectangle([(0, H - band_h), (W, H)], fill=OVERLAY_BG)
 
     # Green accent line above text band
-    draw_o.rectangle([(0, H - band_h - 6), (W, H - band_h)], fill=GREEN + (255,))
+    draw_o.rectangle([(0, H - band_h - 6), (W, H - band_h)], fill=BRAND_BLUE + (255,))
 
     img = Image.alpha_composite(img, overlay)
     draw = ImageDraw.Draw(img)
@@ -83,7 +83,7 @@ def _add_text_overlay(img, title: str, subtitle: str, cta: str):
     cta_x = (W - cta_w) // 2
     draw.rounded_rectangle(
         [(cta_x, cta_y - 6), (cta_x + cta_w, cta_y + 36)],
-        radius=18, fill=GREEN
+        radius=18, fill=BRAND_BLUE
     )
     draw.text((W // 2, cta_y + 15), cta, font=font_cta,
               fill=WHITE, anchor="mm")
@@ -91,11 +91,12 @@ def _add_text_overlay(img, title: str, subtitle: str, cta: str):
     return img.convert("RGB")
 
 
-def _build_frame(img_path: str, title: str, subtitle: str, cta: str):
-    """Load image, resize to 1080x1080, add overlay. Returns PIL Image."""
+def _build_frame(img_path: str, title: str, subtitle: str, cta: str,
+                  width: int = 1080, height: int = 1080):
+    """Load image, resize to target dimensions, add overlay. Returns PIL Image."""
     from PIL import Image
     img = Image.open(img_path).convert("RGB")
-    img = img.resize((1080, 1080), Image.LANCZOS)
+    img = img.resize((width, height), Image.LANCZOS)
     return _add_text_overlay(img, title, subtitle, cta)
 
 
@@ -126,7 +127,8 @@ def _write_video(frames_iter, output_path: str, fps: int = 24):
 
 
 def _generate_video_sync(image_paths: list[str], title: str, subtitle: str,
-                          cta: str, hold_secs: int = 4, fps: int = 24) -> str:
+                          cta: str, hold_secs: int = 4, fps: int = 24,
+                          width: int = 1080, height: int = 1080) -> str:
     """
     Blocking video generation — run via asyncio.to_thread().
     Returns local URL of the saved video (/static/videos/<uuid>.mp4).
@@ -134,9 +136,9 @@ def _generate_video_sync(image_paths: list[str], title: str, subtitle: str,
     import numpy as np
 
     hold_frames    = hold_secs * fps
-    crossfade_n    = fps // 2       # 0.5 s crossfade
+    crossfade_n    = fps // 2
 
-    slides = [_build_frame(p, title, subtitle, cta) for p in image_paths]
+    slides = [_build_frame(p, title, subtitle, cta, width, height) for p in image_paths]
 
     def _all_frames():
         for idx, slide in enumerate(slides):
@@ -181,13 +183,17 @@ async def generate_video_ad(topic: str, n_images: int = 3) -> dict:
     image_paths = [os.path.join(base, u.lstrip("/")) for u in valid_urls]
 
     # Title / subtitle / CTA for the overlay
-    title    = "Fresh Go 🐄"
-    subtitle = f"{topic} — 100% Pure Milk & Desi Ghee"
-    cta      = "Order: WhatsApp 0300-3147887"
+    title    = "FreshGo 🥛"
+    subtitle = f"{topic} — 100% Pure Farm-Fresh Dairy"
+    cta      = "Order Now: WhatsApp 0300-3147887"
+
+    # 9:16 reels format for stories/TikTok, otherwise square
+    vid_w, vid_h = 1080, 1080
 
     try:
         video_url = await asyncio.to_thread(
-            _generate_video_sync, image_paths, title, subtitle, cta
+            _generate_video_sync, image_paths, title, subtitle, cta,
+            4, 24, vid_w, vid_h
         )
     except Exception as e:
         print(f"[Video Error] {e}")
