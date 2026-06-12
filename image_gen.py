@@ -214,55 +214,96 @@ def _try_together(prompt: str, width: int = 1080, height: int = 1080) -> str | N
     # Together AI requires dimensions to be multiples of 32
     w = max(512, (width  // 32) * 32)
     h = max(512, (height // 32) * 32)
-    print(f"[Image] Trying Together AI FLUX.1-schnell-Free {w}x{h}...")
-    try:
-        response = requests.post(
-            "https://api.together.xyz/v1/images/generations",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "black-forest-labs/FLUX.1-schnell",
-                "prompt": prompt,
-                "width": w,
-                "height": h,
-                "steps": 4,
-                "n": 1,
-            },
-            timeout=120,
-        )
-        print(f"[Image] Together AI response {response.status_code}: {response.text[:500]}")
-        if response.status_code == 200:
-            import base64
-            data = response.json()
-            item = data["data"][0]
 
-            # Handle URL response
-            if "url" in item:
-                img_url = item["url"]
-                print(f"[Image] Together AI returned URL: {img_url}")
-                img_response = requests.get(img_url, timeout=60)
-                img_response.raise_for_status()
-                img_bytes = img_response.content
-            # Handle base64 response
-            elif "b64_json" in item:
-                img_bytes = base64.b64decode(item["b64_json"])
+    # Try free model first, fall back to schnell if needed
+    for model in ["black-forest-labs/FLUX.1-schnell-Free", "black-forest-labs/FLUX.1-schnell"]:
+        print(f"[Image] Trying Together AI {model} {w}x{h}...")
+        try:
+            response = requests.post(
+                "https://api.together.xyz/v1/images/generations",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "width": w,
+                    "height": h,
+                    "steps": 4,
+                    "n": 1,
+                },
+                timeout=120,
+            )
+            print(f"[Image] Together AI {model} response {response.status_code}: {response.text[:300]}")
+            if response.status_code == 200:
+                import base64
+                data = response.json()
+                item = data["data"][0]
+
+                if "url" in item:
+                    img_response = requests.get(item["url"], timeout=60)
+                    img_response.raise_for_status()
+                    img_bytes = img_response.content
+                elif "b64_json" in item:
+                    img_bytes = base64.b64decode(item["b64_json"])
+                else:
+                    print(f"[Image] Together AI unknown format: {list(item.keys())}")
+                    continue
+
+                filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+                filepath = os.path.join(STATIC_DIR, filename)
+                with open(filepath, "wb") as f:
+                    f.write(img_bytes)
+                local_url = f"/static/images/{filename}"
+                print(f"[Image] Together AI saved: {local_url}")
+                return local_url
             else:
-                print(f"[Image] Together AI unknown response format: {item.keys()}")
-                return None
+                print(f"[Image] Together AI {model} failed ({response.status_code}), trying next model...")
+        except Exception as e:
+            print(f"[Image] Together AI {model} exception: {e}")
+    return None
 
-            filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
-            filepath = os.path.join(STATIC_DIR, filename)
-            with open(filepath, "wb") as f:
-                f.write(img_bytes)
-            local_url = f"/static/images/{filename}"
-            print(f"[Image] Together AI saved: {local_url}")
-            return local_url
-        return None
-    except Exception as e:
-        print(f"[Image] Together AI exception: {e}")
-        return None
+
+def _try_huggingface(prompt: str, width: int = 1024, height: int = 1024) -> str | None:
+    """Generate image via HuggingFace Inference API (free with HF_TOKEN)."""
+    hf_token = os.getenv("HUGGINGFACE_TOKEN") or os.getenv("HF_TOKEN")
+    headers = {"Content-Type": "application/json"}
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
+    else:
+        print("[Image] No HUGGINGFACE_TOKEN set — trying HF without auth (rate-limited)...")
+
+    # Clamp to safe dimensions for HF
+    w = min(max(512, (width // 64) * 64), 1024)
+    h = min(max(512, (height // 64) * 64), 1024)
+
+    models = [
+        "black-forest-labs/FLUX.1-schnell",
+        "stabilityai/stable-diffusion-xl-base-1.0",
+    ]
+    for model in models:
+        url = f"https://api-inference.huggingface.co/models/{model}"
+        print(f"[Image] Trying HuggingFace {model} {w}x{h}...")
+        try:
+            r = requests.post(
+                url, headers=headers,
+                json={"inputs": prompt, "parameters": {"width": w, "height": h}},
+                timeout=120,
+            )
+            if r.status_code == 200 and "image" in r.headers.get("content-type", ""):
+                filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+                filepath = os.path.join(STATIC_DIR, filename)
+                with open(filepath, "wb") as f:
+                    f.write(r.content)
+                local_url = f"/static/images/{filename}"
+                print(f"[Image] HuggingFace saved: {local_url}")
+                return local_url
+            else:
+                print(f"[Image] HuggingFace {model} → {r.status_code}: {r.text[:200]}")
+        except Exception as e:
+            print(f"[Image] HuggingFace {model} error: {e}")
+    return None
 
 
 def _make_product_ad(product_image_path: str, prompt: str,
@@ -310,7 +351,8 @@ def _make_product_ad(product_image_path: str, prompt: str,
         )
         bg_path = _try_together(bg_prompt)
         if not bg_path:
-            # Fallback: try Pollinations for background
+            bg_path = _try_huggingface(bg_prompt)
+        if not bg_path:
             bg_path = _try_pollinations(bg_prompt)
         if not bg_path:
             return None
@@ -377,12 +419,19 @@ def _make_product_ad(product_image_path: str, prompt: str,
 
 
 def _download_and_save(prompt: str, width: int = 1080, height: int = 1080) -> str | None:
-    """Generate AI image — Together AI primary, Pollinations fallback."""
+    """Generate AI image — tries Together AI → HuggingFace → Pollinations in order."""
     os.makedirs(STATIC_DIR, exist_ok=True)
+
     result = _try_together(prompt, width, height)
     if result:
         return result
-    print("[Image] Together AI failed — trying Pollinations fallback...")
+
+    print("[Image] Together AI failed — trying HuggingFace...")
+    result = _try_huggingface(prompt, width, height)
+    if result:
+        return result
+
+    print("[Image] HuggingFace failed — trying Pollinations...")
     return _try_pollinations(prompt, width, height)
 
 
