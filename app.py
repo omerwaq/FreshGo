@@ -78,6 +78,13 @@ CANCEL_WORDS  = {"no", "nahi", "cancel", "nope", "stop", "na"}
 @app.on_event("startup")
 async def startup():
     init_db()
+    # Restore brand assets from DB in case the filesystem was reset (Railway redeploy)
+    from brand_assets import get_asset_urls
+    assets = get_asset_urls()
+    if assets.get("logo_url"):
+        print(f"[Startup] Logo ready: {assets['logo_url']}")
+    if assets.get("packet_url"):
+        print(f"[Startup] Packet ready: {assets['packet_url']}")
     start_scheduler()
     os.makedirs("static/images", exist_ok=True)
     os.makedirs("static/videos", exist_ok=True)

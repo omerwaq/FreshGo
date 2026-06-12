@@ -1591,28 +1591,36 @@ async function uploadLogo(input){
   const file = input.files[0]; if(!file) return;
   const fd = new FormData(); fd.append('file', file);
   showToast('Uploading logo...');
-  const r = await fetch('/api/brand-assets/logo', {method:'POST', body:fd});
-  const d = await r.json();
-  if(d.ok){
-    document.getElementById('logo-preview').src = d.logo_url + '?t=' + Date.now();
-    document.getElementById('logo-preview').style.display = 'block';
-    document.getElementById('logo-placeholder').style.display = 'none';
-    showToast('Logo saved!');
-  } else { showToast('Upload failed'); }
+  try{
+    const r = await fetch('/api/brand-assets/logo', {method:'POST', body:fd});
+    if(r.status === 401){ alert('Session expired — please refresh and log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    const d = await r.json();
+    if(d.ok){
+      document.getElementById('logo-preview').src = d.logo_url + '?t=' + Date.now();
+      document.getElementById('logo-preview').style.display = 'block';
+      document.getElementById('logo-placeholder').style.display = 'none';
+      showToast('Logo saved ✅ (persisted to database)');
+    } else { alert('Logo upload failed: ' + (d.error||'Unknown error')); }
+  }catch(e){ alert('Upload error: ' + e.message); }
+  input.value = '';
 }
 
 async function uploadPacket(input){
   const file = input.files[0]; if(!file) return;
   const fd = new FormData(); fd.append('file', file);
   showToast('Uploading packet image...');
-  const r = await fetch('/api/brand-assets/packet', {method:'POST', body:fd});
-  const d = await r.json();
-  if(d.ok){
-    document.getElementById('packet-preview').src = d.packet_url + '?t=' + Date.now();
-    document.getElementById('packet-preview').style.display = 'block';
-    document.getElementById('packet-placeholder').style.display = 'none';
-    showToast('Packet image saved!');
-  } else { showToast('Upload failed'); }
+  try{
+    const r = await fetch('/api/brand-assets/packet', {method:'POST', body:fd});
+    if(r.status === 401){ alert('Session expired — please refresh and log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    const d = await r.json();
+    if(d.ok){
+      document.getElementById('packet-preview').src = d.packet_url + '?t=' + Date.now();
+      document.getElementById('packet-preview').style.display = 'block';
+      document.getElementById('packet-placeholder').style.display = 'none';
+      showToast('Packet image saved ✅ (persisted to database)');
+    } else { alert('Packet upload failed: ' + (d.error||'Unknown error')); }
+  }catch(e){ alert('Upload error: ' + e.message); }
+  input.value = '';
 }
 
 // ── Weekly Posts ─────────────────────────────────────────────────────────────

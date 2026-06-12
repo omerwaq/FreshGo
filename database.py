@@ -89,6 +89,16 @@ def init_db():
         )
     """)
 
+    # Brand assets stored as base64 so they survive Railway filesystem resets
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS brand_assets (
+            key        TEXT PRIMARY KEY,
+            data_b64   TEXT NOT NULL,
+            ext        TEXT NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -470,3 +480,23 @@ def update_admin_user(user_id: int, full_name: str | None, password: str | None,
         c.execute("UPDATE admin_users SET role=? WHERE id=?", (role, user_id))
     conn.commit()
     conn.close()
+
+
+# ── Brand Assets (persisted in DB so Railway filesystem resets don't wipe them) ─
+
+def save_brand_asset_db(key: str, data_b64: str, ext: str):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO brand_assets(key, data_b64, ext, updated_at) VALUES(?,?,?,datetime('now'))"
+        " ON CONFLICT(key) DO UPDATE SET data_b64=excluded.data_b64, ext=excluded.ext, updated_at=excluded.updated_at",
+        (key, data_b64, ext)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_brand_asset_db(key: str) -> dict | None:
+    conn = get_conn()
+    row = conn.execute("SELECT data_b64, ext FROM brand_assets WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
