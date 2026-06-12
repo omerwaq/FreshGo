@@ -10,3 +10,4 @@ imageio[ffmpeg]
 Pillow
 numpy
 openpyxl
+rembg[cpu]

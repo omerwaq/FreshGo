@@ -285,6 +285,19 @@ def _make_product_ad(product_image_path: str, prompt: str,
         else:
             product_img = Image.open(product_image_path).convert("RGBA")
 
+        # Auto-remove background so only the packet is cut out cleanly
+        try:
+            from rembg import remove as rembg_remove
+            import io as _io
+            buf = _io.BytesIO()
+            product_img.save(buf, format="PNG")
+            buf.seek(0)
+            cleaned = rembg_remove(buf.read())
+            product_img = Image.open(_io.BytesIO(cleaned)).convert("RGBA")
+            print("[Image] Background removed from product image ✅")
+        except Exception as rmbg_err:
+            print(f"[Image] rembg skipped (using original): {rmbg_err}")
+
         # ── Background prompt — NEVER include product/bottle/dairy mentions ──
         # We extract only the setting/mood words from the topic, not the product.
         # This prevents the AI from generating competitor bottles or random dairy.
