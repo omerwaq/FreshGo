@@ -354,17 +354,44 @@ def _make_product_ad(product_image_path: str, prompt: str,
             bg_path = _try_huggingface(bg_prompt)
         if not bg_path:
             bg_path = _try_pollinations(bg_prompt)
-        if not bg_path:
-            return None
 
-        bg_full = os.path.join(os.path.dirname(__file__), bg_path.lstrip("/"))
-        background = Image.open(bg_full).convert("RGBA").resize((1024, 1024))
-
-        # Slightly enhance background brightness/contrast for a premium look
-        bg_rgb = background.convert("RGB")
-        bg_rgb = ImageEnhance.Brightness(bg_rgb).enhance(1.05)
-        bg_rgb = ImageEnhance.Contrast(bg_rgb).enhance(1.1)
-        background = bg_rgb.convert("RGBA")
+        if bg_path:
+            bg_full = os.path.join(os.path.dirname(__file__), bg_path.lstrip("/"))
+            background = Image.open(bg_full).convert("RGBA").resize((1024, 1024))
+            bg_rgb = background.convert("RGB")
+            bg_rgb = ImageEnhance.Brightness(bg_rgb).enhance(1.05)
+            bg_rgb = ImageEnhance.Contrast(bg_rgb).enhance(1.1)
+            background = bg_rgb.convert("RGBA")
+        else:
+            # ── Pillow-only fallback: premium blue gradient background ──────
+            print("[Image] All AI APIs failed — generating gradient background with Pillow")
+            import numpy as np
+            W, H = 1024, 1024
+            background = Image.new("RGBA", (W, H))
+            # Vertical gradient: deep navy at top → royal blue → light blue at bottom
+            top    = (0,  30, 100)
+            mid    = (0,  86, 210)
+            bottom = (80, 160, 255)
+            pixels = []
+            for y in range(H):
+                t = y / H
+                if t < 0.5:
+                    r2 = t * 2
+                    c = tuple(int(top[i]*(1-r2) + mid[i]*r2) for i in range(3)) + (255,)
+                else:
+                    r2 = (t - 0.5) * 2
+                    c = tuple(int(mid[i]*(1-r2) + bottom[i]*r2) for i in range(3)) + (255,)
+                pixels.extend([c] * W)
+            background.putdata(pixels)
+            # Add soft radial light burst in centre
+            from PIL import ImageDraw, ImageFilter
+            overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+            for r in range(300, 0, -10):
+                alpha = int(30 * (1 - r/300))
+                draw.ellipse([W//2-r, H//2-r, W//2+r, H//2+r], fill=(255,255,255,alpha))
+            overlay = overlay.filter(ImageFilter.GaussianBlur(40))
+            background = Image.alpha_composite(background, overlay)
 
         # Resize product to 70% of canvas height, centered horizontally
         max_h = int(1024 * 0.70)
@@ -418,8 +445,64 @@ def _make_product_ad(product_image_path: str, prompt: str,
         return None
 
 
+def _make_pillow_placeholder(topic: str = "", width: int = 1024, height: int = 1024) -> str | None:
+    """Last-resort: generate a branded FreshGo placeholder image using only Pillow."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
+        os.makedirs(STATIC_DIR, exist_ok=True)
+        W, H = width, height
+
+        # Blue gradient background
+        img = Image.new("RGBA", (W, H))
+        top, mid, bot = (0, 30, 100), (0, 86, 210), (80, 160, 255)
+        pixels = []
+        for y in range(H):
+            t = y / H
+            if t < 0.5:
+                r2 = t * 2
+                c = tuple(int(top[i]*(1-r2) + mid[i]*r2) for i in range(3)) + (255,)
+            else:
+                r2 = (t - 0.5) * 2
+                c = tuple(int(mid[i]*(1-r2) + bot[i]*r2) for i in range(3)) + (255,)
+            pixels.extend([c] * W)
+        img.putdata(pixels)
+
+        # Soft white glow
+        ov = Image.new("RGBA", (W, H), (0,0,0,0))
+        d  = ImageDraw.Draw(ov)
+        for r in range(min(W,H)//3, 0, -8):
+            d.ellipse([W//2-r, H//2-r, W//2+r, H//2+r], fill=(255,255,255, int(25*(1-r/(min(W,H)/3)))))
+        img = Image.alpha_composite(img, ov.filter(ImageFilter.GaussianBlur(30)))
+
+        # FreshGo text
+        draw = ImageDraw.Draw(img)
+        try:
+            fnt_big = ImageFont.truetype("/System/Library/Fonts/Avenir Next.ttc", min(W//6, 120), index=7)
+            fnt_sm  = ImageFont.truetype("/System/Library/Fonts/Avenir Next.ttc", min(W//16, 50), index=3)
+        except Exception:
+            fnt_big = fnt_sm = ImageFont.load_default()
+
+        brand = "FreshGo"
+        bw = int(draw.textlength(brand, font=fnt_big))
+        draw.text(((W-bw)//2 + 2, H//2 - 80 + 2), brand, fill=(0,30,100,180), font=fnt_big)
+        draw.text(((W-bw)//2,     H//2 - 80),      brand, fill=(255,255,255,255), font=fnt_big)
+
+        tag = topic[:50] if topic else "Pure Farm Dairy"
+        tw  = int(draw.textlength(tag, font=fnt_sm))
+        draw.text(((W-tw)//2, H//2 + 60), tag, fill=(180,220,255,230), font=fnt_sm)
+
+        filename = f"post_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(STATIC_DIR, filename)
+        img.convert("RGB").save(filepath, "JPEG", quality=92)
+        print(f"[Image] Pillow placeholder saved: /static/images/{filename}")
+        return f"/static/images/{filename}"
+    except Exception as e:
+        print(f"[Image] Pillow placeholder failed: {e}")
+        return None
+
+
 def _download_and_save(prompt: str, width: int = 1080, height: int = 1080) -> str | None:
-    """Generate AI image — tries Together AI → HuggingFace → Pollinations in order."""
+    """Generate AI image — tries Together AI → HuggingFace → Pollinations → Pillow fallback."""
     os.makedirs(STATIC_DIR, exist_ok=True)
 
     result = _try_together(prompt, width, height)
@@ -432,7 +515,12 @@ def _download_and_save(prompt: str, width: int = 1080, height: int = 1080) -> st
         return result
 
     print("[Image] HuggingFace failed — trying Pollinations...")
-    return _try_pollinations(prompt, width, height)
+    result = _try_pollinations(prompt, width, height)
+    if result:
+        return result
+
+    print("[Image] All AI APIs failed — using Pillow branded placeholder...")
+    return _make_pillow_placeholder(prompt, width, height)
 
 
 async def fetch_and_save_image(topic: str, aspect_ratio: str = "square",
