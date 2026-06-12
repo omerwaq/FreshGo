@@ -858,7 +858,7 @@ Any questions? Call/WhatsApp: 0300-3147887</div>
             <div style="font-weight:600;font-size:13px;margin-bottom:6px;">Brand Logo</div>
             <div style="font-size:11.5px;color:#6b7280;margin-bottom:10px;">Appears bottom-right on every post</div>
             <input type="file" id="logo-file" accept="image/*" style="display:none" onchange="uploadLogo(this)"/>
-            <button onclick="document.getElementById('logo-file').click()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;">
+            <button id="logo-upload-btn" onclick="document.getElementById('logo-file').click()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;">
               Upload Logo
             </button>
           </div>
@@ -872,7 +872,7 @@ Any questions? Call/WhatsApp: 0300-3147887</div>
             <div style="font-weight:600;font-size:13px;margin-bottom:6px;">Product Packet Image</div>
             <div style="font-size:11.5px;color:#6b7280;margin-bottom:10px;">Composited as hero in every post image</div>
             <input type="file" id="packet-file" accept="image/*" style="display:none" onchange="uploadPacket(this)"/>
-            <button onclick="document.getElementById('packet-file').click()" style="background:#059669;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;">
+            <button id="packet-upload-btn" onclick="document.getElementById('packet-file').click()" style="background:#059669;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;">
               Upload Packet
             </button>
           </div>
@@ -1574,15 +1574,18 @@ async function loadBrandAssets(){
   try{
     const r = await fetch('/api/brand-assets');
     const d = await r.json();
+    const t = Date.now();
     if(d.logo_url){
-      document.getElementById('logo-preview').src = d.logo_url;
+      document.getElementById('logo-preview').src = d.logo_url + '?t=' + t;
       document.getElementById('logo-preview').style.display = 'block';
       document.getElementById('logo-placeholder').style.display = 'none';
+      document.getElementById('logo-upload-btn').textContent = '✅ Logo Saved — Click to Change';
     }
     if(d.packet_url){
-      document.getElementById('packet-preview').src = d.packet_url;
+      document.getElementById('packet-preview').src = d.packet_url + '?t=' + t;
       document.getElementById('packet-preview').style.display = 'block';
       document.getElementById('packet-placeholder').style.display = 'none';
+      document.getElementById('packet-upload-btn').textContent = '✅ Packet Saved — Click to Change';
     }
   }catch(e){ console.error('Brand assets load error', e); }
 }
@@ -1590,16 +1593,18 @@ async function loadBrandAssets(){
 async function uploadLogo(input){
   const file = input.files[0]; if(!file) return;
   const fd = new FormData(); fd.append('file', file);
-  showToast('Uploading logo...');
+  toast('Uploading logo…');
   try{
     const r = await fetch('/api/brand-assets/logo', {method:'POST', body:fd});
-    if(r.status === 401){ alert('Session expired — please refresh and log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    if(r.status === 401){ alert('Session expired — please log in again.'); window.location.href='/login?next=/dashboard'; return; }
     const d = await r.json();
     if(d.ok){
-      document.getElementById('logo-preview').src = d.logo_url + '?t=' + Date.now();
+      const t = Date.now();
+      document.getElementById('logo-preview').src = d.logo_url + '?t=' + t;
       document.getElementById('logo-preview').style.display = 'block';
       document.getElementById('logo-placeholder').style.display = 'none';
-      showToast('Logo saved ✅ (persisted to database)');
+      document.getElementById('logo-upload-btn').textContent = '✅ Logo Saved — Click to Change';
+      toast('Logo saved ✅');
     } else { alert('Logo upload failed: ' + (d.error||'Unknown error')); }
   }catch(e){ alert('Upload error: ' + e.message); }
   input.value = '';
@@ -1608,16 +1613,18 @@ async function uploadLogo(input){
 async function uploadPacket(input){
   const file = input.files[0]; if(!file) return;
   const fd = new FormData(); fd.append('file', file);
-  showToast('Uploading packet image...');
+  toast('Uploading packet image…');
   try{
     const r = await fetch('/api/brand-assets/packet', {method:'POST', body:fd});
-    if(r.status === 401){ alert('Session expired — please refresh and log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    if(r.status === 401){ alert('Session expired — please log in again.'); window.location.href='/login?next=/dashboard'; return; }
     const d = await r.json();
     if(d.ok){
-      document.getElementById('packet-preview').src = d.packet_url + '?t=' + Date.now();
+      const t = Date.now();
+      document.getElementById('packet-preview').src = d.packet_url + '?t=' + t;
       document.getElementById('packet-preview').style.display = 'block';
       document.getElementById('packet-placeholder').style.display = 'none';
-      showToast('Packet image saved ✅ (persisted to database)');
+      document.getElementById('packet-upload-btn').textContent = '✅ Packet Saved — Click to Change';
+      toast('Packet image saved ✅');
     } else { alert('Packet upload failed: ' + (d.error||'Unknown error')); }
   }catch(e){ alert('Upload error: ' + e.message); }
   input.value = '';
