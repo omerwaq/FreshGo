@@ -326,7 +326,16 @@ def _make_product_ad(product_image_path: str, prompt: str,
         else:
             product_img = Image.open(product_image_path).convert("RGBA")
 
-        # Auto-remove background so only the packet is cut out cleanly
+        # ── Auto-crop front panel if this looks like a flat packaging layout ──
+        # Flat layouts are significantly wider than tall (ratio > 1.4).
+        # Crop the left 52% which is the front/display face of the packet.
+        pw, ph = product_img.size
+        if pw > ph * 1.4:
+            crop_x = int(pw * 0.52)
+            product_img = product_img.crop((0, 0, crop_x, ph))
+            print(f"[Image] Flat layout detected — cropped to front panel: {crop_x}x{ph}")
+
+        # ── Auto-remove background so only the packet shape remains ──────────
         try:
             from rembg import remove as rembg_remove
             import io as _io
@@ -393,23 +402,26 @@ def _make_product_ad(product_image_path: str, prompt: str,
             overlay = overlay.filter(ImageFilter.GaussianBlur(40))
             background = Image.alpha_composite(background, overlay)
 
-        # Resize product to 70% of canvas height, centered horizontally
-        max_h = int(1024 * 0.70)
-        ratio = max_h / product_img.height
-        new_w = int(product_img.width * ratio)
-        product_resized = product_img.resize((new_w, max_h), Image.LANCZOS)
+        # Resize product — fill 82% of canvas height, cap width at 80% of canvas
+        canvas = 1024
+        max_h  = int(canvas * 0.82)
+        max_w  = int(canvas * 0.80)
+        ratio  = min(max_h / product_img.height, max_w / product_img.width)
+        new_h  = int(product_img.height * ratio)
+        new_w  = int(product_img.width  * ratio)
+        product_resized = product_img.resize((new_w, new_h), Image.LANCZOS)
 
-        # Stronger drop shadow for depth
-        shadow_pad = 40
-        shadow = Image.new("RGBA", (new_w + shadow_pad*2, max_h + shadow_pad*2), (0, 0, 0, 0))
-        shadow_layer = Image.new("RGBA", (new_w, max_h), (0, 0, 0, 100))
+        # Deep drop shadow
+        shadow_pad = 50
+        shadow = Image.new("RGBA", (new_w + shadow_pad*2, new_h + shadow_pad*2), (0,0,0,0))
+        shadow_layer = Image.new("RGBA", (new_w, new_h), (0, 0, 0, 130))
         shadow.paste(shadow_layer, (shadow_pad, shadow_pad))
-        shadow = shadow.filter(ImageFilter.GaussianBlur(20))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(28))
 
-        # Center the product, sitting above the bottom edge
-        x = (1024 - new_w) // 2
-        y = 1024 - max_h - 40
-        background.paste(shadow, (x - shadow_pad, y - shadow_pad), shadow)
+        # Centre horizontally, sit near bottom with a little padding
+        x = (canvas - new_w) // 2
+        y = canvas - new_h - 30
+        background.paste(shadow, (x - shadow_pad, y - shadow_pad + 20), shadow)
         background.paste(product_resized, (x, y), product_resized)
 
         # Overlay brand logo in bottom-right corner
