@@ -2,6 +2,8 @@ import os
 import asyncio
 import secrets
 import hmac
+import json
+import base64
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Query, UploadFile, File
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -35,15 +37,44 @@ ADMIN_FB_ID    = os.getenv("ADMIN_FB_ID", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "freshgo123")
 
-# In-memory sessions: token -> {expiry, username, role}
-_sessions: dict[str, dict] = {}
-
-SESSION_COOKIE  = "freshgo_session"
-SESSION_HOURS   = 24
+SESSION_COOKIE   = "freshgo_session"
+SESSION_HOURS    = 72   # 3 days — survives Railway restarts
+# Secret used to sign session cookies — set SESSION_SECRET in Railway env for security
+_SESSION_SECRET  = os.getenv("SESSION_SECRET", "freshgo_default_secret_change_me")
 
 _PROTECTED_PREFIXES = ("/dashboard", "/api/")
 _PUBLIC_API_PATHS   = {"/api/login", "/api/logout", "/api/todays-customers", "/health"}
 _PUBLIC_PREFIXES    = ("/static/", "/webhook", "/whatsapp", "/favicon.ico")
+
+
+def _sign(data: str) -> str:
+    """HMAC-SHA256 sign a string."""
+    import hashlib
+    return hmac.new(_SESSION_SECRET.encode(), data.encode(), hashlib.sha256).hexdigest()
+
+
+def _make_session_cookie(username: str, role: str) -> str:
+    """Encode {username, role, expiry} + HMAC signature into a cookie value."""
+    expiry = (datetime.utcnow() + timedelta(hours=SESSION_HOURS)).isoformat()
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"u": username, "r": role, "e": expiry}).encode()
+    ).decode()
+    sig = _sign(payload)
+    return f"{payload}.{sig}"
+
+
+def _decode_session_cookie(cookie: str) -> dict | None:
+    """Verify and decode a session cookie. Returns {username, role} or None."""
+    try:
+        payload, sig = cookie.rsplit(".", 1)
+        if not hmac.compare_digest(sig, _sign(payload)):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
+        if datetime.fromisoformat(data["e"]) < datetime.utcnow():
+            return None
+        return {"username": data["u"], "role": data["r"]}
+    except Exception:
+        return None
 
 
 @app.middleware("http")
@@ -58,13 +89,11 @@ async def auth_middleware(request: Request, call_next):
     if not any(path.startswith(p) for p in _PROTECTED_PREFIXES):
         return await call_next(request)
 
-    token = request.cookies.get(SESSION_COOKIE)
-    if token and token in _sessions and _sessions[token]["expiry"] > datetime.utcnow():
-        request.state.user = _sessions[token]
+    cookie = request.cookies.get(SESSION_COOKIE)
+    user   = _decode_session_cookie(cookie) if cookie else None
+    if user:
+        request.state.user = user
         return await call_next(request)
-
-    if token and token in _sessions:
-        del _sessions[token]
 
     if path.startswith("/api/"):
         return JSONResponse(status_code=401, content={"error": "Not authenticated"})
@@ -876,9 +905,8 @@ NO_CACHE = {
 
 @app.get("/login", response_class=HTMLResponse)
 async def serve_login(request: Request):
-    # Already logged in → go straight to dashboard
-    token = request.cookies.get(SESSION_COOKIE)
-    if token and token in _sessions and _sessions[token] > datetime.utcnow():
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if cookie and _decode_session_cookie(cookie):
         return RedirectResponse(url="/dashboard", status_code=302)
     with open(os.path.join(BASE_DIR, "login.html")) as f:
         return HTMLResponse(content=f.read(), headers=NO_CACHE)
@@ -906,24 +934,16 @@ async def api_login(request: Request):
     if role is None:
         return JSONResponse(status_code=401, content={"error": "Wrong username or password"})
 
-    token = secrets.token_urlsafe(32)
-    _sessions[token] = {
-        "expiry":   datetime.utcnow() + timedelta(hours=SESSION_HOURS),
-        "username": username,
-        "role":     role,
-    }
-
-    response = JSONResponse({"ok": True, "role": role})
-    response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_HOURS * 3600,
+    cookie_val = _make_session_cookie(username, role)
+    response   = JSONResponse({"ok": True, "role": role})
+    response.set_cookie(SESSION_COOKIE, cookie_val,
+                        max_age=SESSION_HOURS * 3600,
                         httponly=True, samesite="lax")
     return response
 
 
 @app.get("/api/logout")
 async def api_logout(request: Request):
-    token = request.cookies.get(SESSION_COOKIE)
-    if token and token in _sessions:
-        del _sessions[token]
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie(SESSION_COOKIE)
     return response
