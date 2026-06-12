@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 
 from database       import init_db, get_all_orders, get_stats, update_order_status, \
                            get_all_scheduled_posts, delete_scheduled_post, create_scheduled_post, \
-                           get_order, get_todays_customers
+                           get_order, get_todays_customers, \
+                           get_all_admin_users, get_admin_user_by_username, \
+                           create_admin_user, delete_admin_user, update_admin_user
 from ai_engine      import get_support_reply, generate_post
 from facebook       import send_message, publish_post
 from state          import set_pending_post, get_pending_post, clear_pending_post, has_pending_post
@@ -32,38 +34,34 @@ ADMIN_FB_ID    = os.getenv("ADMIN_FB_ID", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "freshgo123")
 
-# In-memory sessions: token -> expiry datetime
-_sessions: dict[str, datetime] = {}
+# In-memory sessions: token -> {expiry, username, role}
+_sessions: dict[str, dict] = {}
 
 SESSION_COOKIE  = "freshgo_session"
 SESSION_HOURS   = 24
 
-# Paths that need a valid session
 _PROTECTED_PREFIXES = ("/dashboard", "/api/")
-# Paths that are always public even though they start with /api/
-_PUBLIC_API_PATHS = {"/api/login", "/api/logout", "/api/todays-customers", "/health"}
-_PUBLIC_PREFIXES  = ("/static/", "/webhook", "/whatsapp", "/favicon.ico")
+_PUBLIC_API_PATHS   = {"/api/login", "/api/logout", "/api/todays-customers", "/health"}
+_PUBLIC_PREFIXES    = ("/static/", "/webhook", "/whatsapp", "/favicon.ico")
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
 
-    # Always public
-    if path in {"/" , "/login", "/health"} or \
+    if path in {"/", "/login", "/health"} or \
        any(path.startswith(p) for p in _PUBLIC_PREFIXES) or \
        path in _PUBLIC_API_PATHS:
         return await call_next(request)
 
-    # Does this path need auth?
     if not any(path.startswith(p) for p in _PROTECTED_PREFIXES):
         return await call_next(request)
 
     token = request.cookies.get(SESSION_COOKIE)
-    if token and token in _sessions and _sessions[token] > datetime.utcnow():
+    if token and token in _sessions and _sessions[token]["expiry"] > datetime.utcnow():
+        request.state.user = _sessions[token]
         return await call_next(request)
 
-    # Expired session — clean it up
     if token and token in _sessions:
         del _sessions[token]
 
@@ -844,35 +842,113 @@ async def serve_login(request: Request):
 
 @app.post("/api/login")
 async def api_login(request: Request):
-    body = await request.json()
-    username = body.get("username", "")
-    password = body.get("password", "")
+    body     = await request.json()
+    username = body.get("username", "").strip().lower()
+    password = body.get("password", "").strip()
 
-    username_ok = hmac.compare_digest(username.strip(), ADMIN_USERNAME)
-    password_ok = hmac.compare_digest(password.strip(), ADMIN_PASSWORD)
+    role = None
+    # Check owner credentials first
+    owner_match = (
+        hmac.compare_digest(username, ADMIN_USERNAME.lower()) and
+        hmac.compare_digest(password, ADMIN_PASSWORD)
+    )
+    if owner_match:
+        role = "owner"
+    else:
+        db_user = get_admin_user_by_username(username)
+        if db_user and db_user["password"] == password:
+            role = db_user["role"]
 
-    if not (username_ok and password_ok):
+    if role is None:
         return JSONResponse(status_code=401, content={"error": "Wrong username or password"})
 
     token = secrets.token_urlsafe(32)
-    _sessions[token] = datetime.utcnow() + timedelta(hours=SESSION_HOURS)
+    _sessions[token] = {
+        "expiry":   datetime.utcnow() + timedelta(hours=SESSION_HOURS),
+        "username": username,
+        "role":     role,
+    }
 
-    response = JSONResponse({"ok": True})
-    response.set_cookie(
-        SESSION_COOKIE,
-        token,
-        max_age=SESSION_HOURS * 3600,
-        httponly=True,
-        samesite="lax",
-    )
+    response = JSONResponse({"ok": True, "role": role})
+    response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_HOURS * 3600,
+                        httponly=True, samesite="lax")
     return response
 
 
 @app.get("/api/logout")
-async def api_logout():
+async def api_logout(request: Request):
+    token = request.cookies.get(SESSION_COOKIE)
+    if token and token in _sessions:
+        del _sessions[token]
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie(SESSION_COOKIE)
     return response
+
+
+@app.get("/api/me")
+async def api_me(request: Request):
+    user = getattr(request.state, "user", {})
+    return {"username": user.get("username", ""), "role": user.get("role", "")}
+
+
+# ── User Management (owner only) ──────────────────────────────────────────────
+
+def _require_owner(request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != "owner":
+        raise Exception("owner_only")
+
+@app.get("/api/users")
+async def api_list_users(request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != "owner":
+        return JSONResponse(status_code=403, content={"error": "Owner access required"})
+    return {"users": get_all_admin_users()}
+
+
+@app.post("/api/users")
+async def api_create_user(request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != "owner":
+        return JSONResponse(status_code=403, content={"error": "Owner access required"})
+    body      = await request.json()
+    username  = body.get("username", "").strip().lower()
+    password  = body.get("password", "").strip()
+    full_name = body.get("full_name", "").strip()
+    role      = body.get("role", "staff")
+    if not username or not password:
+        return JSONResponse(status_code=400, content={"error": "username and password required"})
+    if role not in ("staff", "owner"):
+        return JSONResponse(status_code=400, content={"error": "role must be staff or owner"})
+    try:
+        uid = create_admin_user(username, password, full_name, role)
+        return {"ok": True, "id": uid}
+    except Exception:
+        return JSONResponse(status_code=409, content={"error": "Username already exists"})
+
+
+@app.delete("/api/users/{user_id}")
+async def api_delete_user(user_id: int, request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != "owner":
+        return JSONResponse(status_code=403, content={"error": "Owner access required"})
+    deleted = delete_admin_user(user_id)
+    if not deleted:
+        return JSONResponse(status_code=404, content={"error": "User not found"})
+    return {"ok": True}
+
+
+@app.put("/api/users/{user_id}")
+async def api_update_user(user_id: int, request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != "owner":
+        return JSONResponse(status_code=403, content={"error": "Owner access required"})
+    body      = await request.json()
+    full_name = body.get("full_name")
+    password  = body.get("password")
+    role      = body.get("role")
+    update_admin_user(user_id, full_name, password or None, role)
+    return {"ok": True}
 
 
 @app.get("/", response_class=HTMLResponse)

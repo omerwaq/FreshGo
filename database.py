@@ -75,7 +75,19 @@ def init_db():
         c.execute("ALTER TABLE orders ADD COLUMN phone TEXT")
         conn.commit()
     except Exception:
-        pass  # Column already exists
+        pass
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT UNIQUE NOT NULL,
+            password   TEXT NOT NULL,
+            full_name  TEXT DEFAULT '',
+            role       TEXT DEFAULT 'staff',
+            is_active  INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -402,3 +414,59 @@ def delete_scheduled_post(post_id: int) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
+
+# ── Admin Users ───────────────────────────────────────────────────────────────
+
+def get_all_admin_users() -> list:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, role, is_active, created_at FROM admin_users ORDER BY created_at")
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_admin_user_by_username(username: str) -> dict | None:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT * FROM admin_users WHERE username=? AND is_active=1", (username,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_admin_user(username: str, password: str, full_name: str, role: str) -> int:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO admin_users (username, password, full_name, role) VALUES (?,?,?,?)",
+        (username.strip().lower(), password, full_name.strip(), role)
+    )
+    user_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+
+def delete_admin_user(user_id: int) -> bool:
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("DELETE FROM admin_users WHERE id=?", (user_id,))
+    deleted = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def update_admin_user(user_id: int, full_name: str | None, password: str | None, role: str | None):
+    conn = get_conn()
+    c = conn.cursor()
+    if full_name is not None:
+        c.execute("UPDATE admin_users SET full_name=? WHERE id=?", (full_name, user_id))
+    if password is not None:
+        c.execute("UPDATE admin_users SET password=? WHERE id=?", (password, user_id))
+    if role is not None:
+        c.execute("UPDATE admin_users SET role=? WHERE id=?", (role, user_id))
+    conn.commit()
+    conn.close()
