@@ -560,6 +560,50 @@ tr:hover td{background:#f9fdf9;}
     <!-- CREATE POST TAB -->
     <div id="tab-create" style="display:none;">
 
+      <!-- ── Brand Assets (prominent, top of Create Post) ─────────────── -->
+      <div class="section-card" style="margin-bottom:18px;border:2px solid #3b82f6;">
+        <div style="padding:16px 22px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px 10px 0 0;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:22px;">📦</span>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:#1e40af;">Your FreshGo Packet &amp; Logo</div>
+            <div style="font-size:12px;color:#3b82f6;margin-top:1px;">Upload once — used automatically in every generated image</div>
+          </div>
+        </div>
+        <div style="padding:16px 22px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+          <!-- Packet upload -->
+          <div style="background:#f8fafc;border:2px dashed #3b82f6;border-radius:10px;padding:16px;text-align:center;">
+            <div id="packet-preview-wrap2">
+              <img id="packet-preview2" src="" style="display:none;max-height:80px;border-radius:8px;margin-bottom:8px;"/>
+              <div id="packet-placeholder2" style="font-size:36px;margin-bottom:6px;">📦</div>
+            </div>
+            <div style="font-weight:700;font-size:13px;color:#1e40af;margin-bottom:4px;">Product Packet</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">Your milk/ghee packet image<br>AI removes background automatically</div>
+            <input type="file" id="packet-file2" accept="image/*" style="display:none" onchange="uploadPacketFromStudio(this)"/>
+            <button id="packet-upload-btn2" onclick="document.getElementById('packet-file2').click()"
+              style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+              📤 Upload Packet
+            </button>
+          </div>
+
+          <!-- Logo upload -->
+          <div style="background:#f8fafc;border:2px dashed #cbd5e1;border-radius:10px;padding:16px;text-align:center;">
+            <div id="logo-preview-wrap2">
+              <img id="logo-preview2" src="" style="display:none;max-height:80px;border-radius:8px;margin-bottom:8px;"/>
+              <div id="logo-placeholder2" style="font-size:36px;margin-bottom:6px;">🏷️</div>
+            </div>
+            <div style="font-weight:700;font-size:13px;color:#374151;margin-bottom:4px;">Brand Logo</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">Appears bottom-right<br>on every generated image</div>
+            <input type="file" id="logo-file2" accept="image/*" style="display:none" onchange="uploadLogoFromStudio(this)"/>
+            <button id="logo-upload-btn2" onclick="document.getElementById('logo-file2').click()"
+              style="background:#6b7280;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+              📤 Upload Logo
+            </button>
+          </div>
+
+        </div>
+      </div>
+
       <!-- ── Image Studio ──────────────────────────────────────────────── -->
       <div class="section-card" style="margin-bottom:18px;">
         <div style="padding:18px 22px 0;">
@@ -1570,23 +1614,35 @@ initDt();
 setInterval(()=>{ loadStats(); loadOrders(curFilter); }, 60000);
 
 // ── Brand Assets ────────────────────────────────────────────────────────────
+function _applyLogoToUI(url){
+  const t = Date.now();
+  ['','2'].forEach(sfx => {
+    const prev = document.getElementById('logo-preview'+sfx);
+    const ph   = document.getElementById('logo-placeholder'+sfx);
+    const btn  = document.getElementById('logo-upload-btn'+sfx);
+    if(prev){ prev.src = url+'?t='+t; prev.style.display='block'; }
+    if(ph)  { ph.style.display='none'; }
+    if(btn) { btn.textContent='✅ Logo Saved — Click to Change'; btn.style.background='#059669'; }
+  });
+}
+function _applyPacketToUI(url){
+  const t = Date.now();
+  ['','2'].forEach(sfx => {
+    const prev = document.getElementById('packet-preview'+sfx);
+    const ph   = document.getElementById('packet-placeholder'+sfx);
+    const btn  = document.getElementById('packet-upload-btn'+sfx);
+    if(prev){ prev.src = url+'?t='+t; prev.style.display='block'; }
+    if(ph)  { ph.style.display='none'; }
+    if(btn) { btn.textContent='✅ Packet Saved — Click to Change'; btn.style.background='#059669'; }
+  });
+}
+
 async function loadBrandAssets(){
   try{
     const r = await fetch('/api/brand-assets');
     const d = await r.json();
-    const t = Date.now();
-    if(d.logo_url){
-      document.getElementById('logo-preview').src = d.logo_url + '?t=' + t;
-      document.getElementById('logo-preview').style.display = 'block';
-      document.getElementById('logo-placeholder').style.display = 'none';
-      document.getElementById('logo-upload-btn').textContent = '✅ Logo Saved — Click to Change';
-    }
-    if(d.packet_url){
-      document.getElementById('packet-preview').src = d.packet_url + '?t=' + t;
-      document.getElementById('packet-preview').style.display = 'block';
-      document.getElementById('packet-placeholder').style.display = 'none';
-      document.getElementById('packet-upload-btn').textContent = '✅ Packet Saved — Click to Change';
-    }
+    if(d.logo_url)   _applyLogoToUI(d.logo_url);
+    if(d.packet_url) _applyPacketToUI(d.packet_url);
   }catch(e){ console.error('Brand assets load error', e); }
 }
 
@@ -1596,19 +1652,14 @@ async function uploadLogo(input){
   toast('Uploading logo…');
   try{
     const r = await fetch('/api/brand-assets/logo', {method:'POST', body:fd});
-    if(r.status === 401){ alert('Session expired — please log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    if(r.status===401){ alert('Session expired.'); window.location.href='/login?next=/dashboard'; return; }
     const d = await r.json();
-    if(d.ok){
-      const t = Date.now();
-      document.getElementById('logo-preview').src = d.logo_url + '?t=' + t;
-      document.getElementById('logo-preview').style.display = 'block';
-      document.getElementById('logo-placeholder').style.display = 'none';
-      document.getElementById('logo-upload-btn').textContent = '✅ Logo Saved — Click to Change';
-      toast('Logo saved ✅');
-    } else { alert('Logo upload failed: ' + (d.error||'Unknown error')); }
-  }catch(e){ alert('Upload error: ' + e.message); }
-  input.value = '';
+    if(d.ok){ _applyLogoToUI(d.logo_url); toast('Logo saved ✅'); }
+    else { alert('Logo upload failed: '+(d.error||'Unknown')); }
+  }catch(e){ alert('Upload error: '+e.message); }
+  input.value='';
 }
+async function uploadLogoFromStudio(input){ return uploadLogo(input); }
 
 async function uploadPacket(input){
   const file = input.files[0]; if(!file) return;
@@ -1616,19 +1667,14 @@ async function uploadPacket(input){
   toast('Uploading packet image…');
   try{
     const r = await fetch('/api/brand-assets/packet', {method:'POST', body:fd});
-    if(r.status === 401){ alert('Session expired — please log in again.'); window.location.href='/login?next=/dashboard'; return; }
+    if(r.status===401){ alert('Session expired.'); window.location.href='/login?next=/dashboard'; return; }
     const d = await r.json();
-    if(d.ok){
-      const t = Date.now();
-      document.getElementById('packet-preview').src = d.packet_url + '?t=' + t;
-      document.getElementById('packet-preview').style.display = 'block';
-      document.getElementById('packet-placeholder').style.display = 'none';
-      document.getElementById('packet-upload-btn').textContent = '✅ Packet Saved — Click to Change';
-      toast('Packet image saved ✅');
-    } else { alert('Packet upload failed: ' + (d.error||'Unknown error')); }
-  }catch(e){ alert('Upload error: ' + e.message); }
-  input.value = '';
+    if(d.ok){ _applyPacketToUI(d.packet_url); toast('Packet saved ✅ — will be used in all future images'); }
+    else { alert('Packet upload failed: '+(d.error||'Unknown')); }
+  }catch(e){ alert('Upload error: '+e.message); }
+  input.value='';
 }
+async function uploadPacketFromStudio(input){ return uploadPacket(input); }
 
 // ── Weekly Posts ─────────────────────────────────────────────────────────────
 async function loadThemes(){
