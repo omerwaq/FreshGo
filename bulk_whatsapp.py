@@ -7,6 +7,7 @@ First run: scan QR code once. After that it stays logged in.
 """
 
 import time, sys, os, json, urllib.request, urllib.parse
+from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -21,6 +22,8 @@ RAILWAY_URL   = "https://freshgo-production.up.railway.app"
 SESSION_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_session")
 
 DEFAULT_MESSAGE = """Dear {name}, 🌿
+
+📅 {date}
 
 Your Fresh Go {product} ({qty}) has been delivered today. 100% pure and natural — straight from our Nankana Sahib farm to your home. 🐄
 
@@ -173,11 +176,13 @@ def send_messages(customers: list, message_template: str):
         unit = "kg" if "ghee" in product.lower() else "L"
         qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
 
+        today = datetime.now().strftime("%-d %B %Y")  # e.g. "12 June 2026"
         msg = message_template.format(
             name=name,
-            product=product,            # e.g. "desi ghee" or "milk"
-            qty=qty_with_unit,          # with unit: "4 L" or "2 kg"
-            quantity=qty_text,          # combined: "4 desi ghee"
+            product=product,
+            qty=qty_with_unit,
+            quantity=qty_text,
+            date=today,
         )
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
