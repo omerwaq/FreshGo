@@ -437,11 +437,27 @@ def _download_and_save(prompt: str, width: int = 1080, height: int = 1080) -> st
 
 async def fetch_and_save_image(topic: str, aspect_ratio: str = "square",
                                 campaign: str = "default") -> str | None:
-    """Async: generate brand prompt via Groq, then generate image at requested aspect ratio."""
+    """Async: generate brand prompt via Groq, then generate image at requested aspect ratio.
+    If a FreshGo packet image has been uploaded, composites it onto an AI background."""
     try:
         import asyncio
         dims   = ASPECT_RATIOS.get(aspect_ratio, ASPECT_RATIOS["square"])
         prompt = generate_image_prompt_via_ai(topic, campaign)
+
+        # Use uploaded packet image if available — composite it onto AI background
+        from brand_assets import get_packet_path, get_logo_path
+        packet_path = get_packet_path()
+        if packet_path:
+            print(f"[Image] Using uploaded FreshGo packet: {packet_path}")
+            logo_path = get_logo_path()
+            local_url = await asyncio.to_thread(
+                _make_product_ad, packet_path, prompt, logo_path
+            )
+            if local_url:
+                return local_url
+            print("[Image] Product ad composite failed — falling back to plain AI image")
+
+        # No packet uploaded or composite failed — generate plain AI image
         local_url = await asyncio.to_thread(
             _download_and_save, prompt, dims["width"], dims["height"]
         )
