@@ -1,7 +1,10 @@
 import os
 import asyncio
+import secrets
+import hmac
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Query, UploadFile, File
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -24,8 +27,50 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="Fresh Go AI Agent")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
-VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "freshgo_secret_123")
-ADMIN_FB_ID  = os.getenv("ADMIN_FB_ID", "")
+VERIFY_TOKEN   = os.getenv("WEBHOOK_VERIFY_TOKEN", "freshgo_secret_123")
+ADMIN_FB_ID    = os.getenv("ADMIN_FB_ID", "")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "freshgo123")
+
+# In-memory sessions: token -> expiry datetime
+_sessions: dict[str, datetime] = {}
+
+SESSION_COOKIE  = "freshgo_session"
+SESSION_HOURS   = 24
+
+# Paths that need a valid session
+_PROTECTED_PREFIXES = ("/dashboard", "/api/")
+# Paths that are always public even though they start with /api/
+_PUBLIC_API_PATHS = {"/api/login", "/api/logout", "/api/todays-customers", "/health"}
+_PUBLIC_PREFIXES  = ("/static/", "/webhook", "/whatsapp", "/favicon.ico")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+
+    # Always public
+    if path in {"/" , "/login", "/health"} or \
+       any(path.startswith(p) for p in _PUBLIC_PREFIXES) or \
+       path in _PUBLIC_API_PATHS:
+        return await call_next(request)
+
+    # Does this path need auth?
+    if not any(path.startswith(p) for p in _PROTECTED_PREFIXES):
+        return await call_next(request)
+
+    token = request.cookies.get(SESSION_COOKIE)
+    if token and token in _sessions and _sessions[token] > datetime.utcnow():
+        return await call_next(request)
+
+    # Expired session — clean it up
+    if token and token in _sessions:
+        del _sessions[token]
+
+    if path.startswith("/api/"):
+        return JSONResponse(status_code=401, content={"error": "Not authenticated"})
+    return RedirectResponse(url=f"/login?next={path}", status_code=302)
+
 
 CONFIRM_WORDS = {"yes", "yep", "post it", "confirm", "ok", "okay", "ha", "haan",
                  "kar do", "post", "send"}
@@ -786,6 +831,49 @@ NO_CACHE = {
     "Pragma": "no-cache",
     "Expires": "0"
 }
+
+@app.get("/login", response_class=HTMLResponse)
+async def serve_login(request: Request):
+    # Already logged in → go straight to dashboard
+    token = request.cookies.get(SESSION_COOKIE)
+    if token and token in _sessions and _sessions[token] > datetime.utcnow():
+        return RedirectResponse(url="/dashboard", status_code=302)
+    with open(os.path.join(BASE_DIR, "login.html")) as f:
+        return HTMLResponse(content=f.read(), headers=NO_CACHE)
+
+
+@app.post("/api/login")
+async def api_login(request: Request):
+    body = await request.json()
+    username = body.get("username", "")
+    password = body.get("password", "")
+
+    username_ok = hmac.compare_digest(username.strip(), ADMIN_USERNAME)
+    password_ok = hmac.compare_digest(password.strip(), ADMIN_PASSWORD)
+
+    if not (username_ok and password_ok):
+        return JSONResponse(status_code=401, content={"error": "Wrong username or password"})
+
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = datetime.utcnow() + timedelta(hours=SESSION_HOURS)
+
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=SESSION_HOURS * 3600,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/logout")
+async def api_logout():
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_chat():

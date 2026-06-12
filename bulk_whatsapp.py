@@ -170,12 +170,14 @@ def send_messages(customers: list, message_template: str):
         quantity = c.get("quantity", "")
         product  = c.get("product", "milk")
         qty_text = f"{quantity} {product}".strip() if quantity else product
+        unit = "kg" if "ghee" in product.lower() else "L"
+        qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
 
         msg = message_template.format(
             name=name,
-            product=product,       # e.g. "desi ghee" or "milk"
-            qty=quantity or "1",   # just the number: "4"
-            quantity=qty_text,     # combined: "4 desi ghee" (for [Litres] placeholder)
+            product=product,            # e.g. "desi ghee" or "milk"
+            qty=qty_with_unit,          # with unit: "4 L" or "2 kg"
+            quantity=qty_text,          # combined: "4 desi ghee"
         )
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Fresh Go — Admin Login</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐄</text></svg>"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --acc:#10b981;
+  --acc2:#059669;
+  --bg:#f0f7f2;
+  --card:#ffffff;
+  --border:#e4ede8;
+  --text:#1a2e22;
+  --muted:#6b8a75;
+  --radius:16px;
+}
+html,body{
+  height:100%;
+  font-family:'Inter',sans-serif;
+  background:linear-gradient(135deg,#0b1f14 0%,#071610 50%,#0d2b1a 100%);
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;
+}
+.wrap{
+  width:100%;max-width:420px;
+  padding:24px 20px;
+}
+
+/* Logo / Brand */
+.brand{text-align:center;margin-bottom:32px;}
+.brand-logo{
+  width:72px;height:72px;
+  background:linear-gradient(135deg,#10b981,#059669);
+  border-radius:20px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:38px;
+  margin:0 auto 16px;
+  box-shadow:0 8px 32px rgba(16,185,129,0.4);
+}
+.brand h1{
+  font-size:26px;font-weight:800;color:#fff;letter-spacing:-.5px;
+}
+.brand p{
+  font-size:14px;color:rgba(255,255,255,.45);margin-top:5px;
+}
+
+/* Card */
+.card{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.09);
+  border-radius:var(--radius);
+  padding:32px 28px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 24px 64px rgba(0,0,0,.4);
+}
+
+.field{margin-bottom:18px;}
+.field label{
+  display:block;font-size:12.5px;font-weight:600;
+  color:rgba(255,255,255,.55);letter-spacing:.5px;
+  text-transform:uppercase;margin-bottom:7px;
+}
+.field input{
+  width:100%;padding:13px 16px;
+  background:rgba(255,255,255,.07);
+  border:1.5px solid rgba(255,255,255,.12);
+  border-radius:10px;
+  color:#fff;font-size:15px;font-family:inherit;
+  outline:none;transition:border-color .2s,background .2s;
+}
+.field input::placeholder{color:rgba(255,255,255,.25);}
+.field input:focus{
+  border-color:var(--acc);
+  background:rgba(16,185,129,.08);
+}
+
+.btn-login{
+  width:100%;padding:14px;
+  background:linear-gradient(135deg,#10b981,#059669);
+  border:none;border-radius:11px;
+  color:#fff;font-size:15px;font-weight:700;font-family:inherit;
+  cursor:pointer;letter-spacing:.2px;
+  box-shadow:0 4px 20px rgba(16,185,129,.4);
+  transition:all .2s;
+  margin-top:6px;
+}
+.btn-login:hover{transform:translateY(-1px);box-shadow:0 7px 28px rgba(16,185,129,.5);}
+.btn-login:active{transform:translateY(0);}
+.btn-login:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+
+.error-msg{
+  display:none;
+  background:rgba(239,68,68,.15);
+  border:1px solid rgba(239,68,68,.3);
+  border-radius:10px;
+  padding:11px 14px;
+  color:#fca5a5;
+  font-size:13.5px;
+  margin-bottom:18px;
+  text-align:center;
+}
+
+.divider{
+  text-align:center;
+  margin-top:24px;
+  font-size:12px;
+  color:rgba(255,255,255,.2);
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-logo">🐄</div>
+    <h1>Fresh Go</h1>
+    <p>Admin Panel · Nankana Sahib</p>
+  </div>
+
+  <div class="card">
+    <div class="error-msg" id="errMsg"></div>
+
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="admin" autocomplete="username" autofocus/>
+    </div>
+
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">Sign In →</button>
+  </div>
+
+  <div class="divider">Fresh Go AI &copy; 2024</div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const nextUrl = params.get('next') || '/dashboard';
+
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('username').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('password').focus();
+});
+
+async function doLogin() {
+  const btn      = document.getElementById('loginBtn');
+  const errMsg   = document.getElementById('errMsg');
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  errMsg.style.display = 'none';
+  if (!username || !password) {
+    showError('Please enter username and password.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, password}),
+    });
+
+    if (res.ok) {
+      btn.textContent = '✓ Success!';
+      window.location.href = nextUrl;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showError(data.error || 'Wrong username or password.');
+      btn.disabled = false;
+      btn.textContent = 'Sign In →';
+    }
+  } catch (e) {
+    showError('Connection error. Is the server running?');
+    btn.disabled = false;
+    btn.textContent = 'Sign In →';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('errMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>
