@@ -469,6 +469,52 @@ def delete_admin_user(user_id: int) -> bool:
     return deleted
 
 
+def seed_staff_from_env():
+    """
+    Create/update staff accounts from environment variables so they survive Railway redeployments.
+    Reads STAFF1_USERNAME, STAFF1_PASSWORD, STAFF1_NAME (optional), up to STAFF5_*.
+    Also reads STAFF_USERNAME / STAFF_PASSWORD as a single-user shorthand.
+    """
+    entries = []
+    # Shorthand single staff: STAFF_USERNAME / STAFF_PASSWORD
+    u = os.getenv("STAFF_USERNAME", "").strip().lower()
+    p = os.getenv("STAFF_PASSWORD", "").strip()
+    n = os.getenv("STAFF_NAME", "").strip()
+    if u and p:
+        entries.append((u, p, n))
+    # Numbered: STAFF1_* … STAFF5_*
+    for i in range(1, 6):
+        u = os.getenv(f"STAFF{i}_USERNAME", "").strip().lower()
+        p = os.getenv(f"STAFF{i}_PASSWORD", "").strip()
+        n = os.getenv(f"STAFF{i}_NAME", "").strip()
+        if u and p:
+            entries.append((u, p, n))
+
+    if not entries:
+        return
+
+    conn = get_conn()
+    c = conn.cursor()
+    for username, password, full_name in entries:
+        existing = c.execute(
+            "SELECT id FROM admin_users WHERE username=?", (username,)
+        ).fetchone()
+        if existing:
+            c.execute(
+                "UPDATE admin_users SET password=?, full_name=?, is_active=1 WHERE username=?",
+                (password, full_name or username, username)
+            )
+            print(f"[DB] Staff account updated from env: {username}")
+        else:
+            c.execute(
+                "INSERT INTO admin_users (username, password, full_name, role, is_active) VALUES (?,?,?,'staff',1)",
+                (username, password, full_name or username)
+            )
+            print(f"[DB] Staff account created from env: {username}")
+    conn.commit()
+    conn.close()
+
+
 def update_admin_user(user_id: int, full_name: str | None, password: str | None, role: str | None):
     conn = get_conn()
     c = conn.cursor()

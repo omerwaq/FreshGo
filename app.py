@@ -12,7 +12,8 @@ from database       import init_db, get_all_orders, get_stats, update_order_stat
                            get_all_scheduled_posts, delete_scheduled_post, create_scheduled_post, \
                            get_order, get_todays_customers, \
                            get_all_admin_users, get_admin_user_by_username, \
-                           create_admin_user, delete_admin_user, update_admin_user
+                           create_admin_user, delete_admin_user, update_admin_user, \
+                           seed_staff_from_env
 from ai_engine      import get_support_reply, generate_post
 from facebook       import send_message, publish_post
 from state          import set_pending_post, get_pending_post, clear_pending_post, has_pending_post
@@ -78,6 +79,7 @@ CANCEL_WORDS  = {"no", "nahi", "cancel", "nope", "stop", "na"}
 @app.on_event("startup")
 async def startup():
     init_db()
+    seed_staff_from_env()   # Creates/updates staff accounts from Railway env vars
     # Restore brand assets from DB in case the filesystem was reset (Railway redeploy)
     from brand_assets import get_asset_urls
     assets = get_asset_urls()
