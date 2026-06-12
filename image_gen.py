@@ -268,11 +268,12 @@ def _try_together(prompt: str, width: int = 1080, height: int = 1080) -> str | N
 def _make_product_ad(product_image_path: str, prompt: str,
                      logo_path: str | None = None) -> str | None:
     """
-    Composite the real product image onto an AI-generated background using Pillow.
-    Optionally overlays the brand logo in the bottom-right corner.
+    Composite the real FreshGo product image onto a clean AI-generated background.
+    The background prompt is intentionally kept product-free so no random bottles
+    or competitor brands appear — only a clean setting behind the real packet.
     """
     try:
-        from PIL import Image, ImageFilter
+        from PIL import Image, ImageFilter, ImageEnhance
         import base64, io
 
         os.makedirs(STATIC_DIR, exist_ok=True)
@@ -284,31 +285,49 @@ def _make_product_ad(product_image_path: str, prompt: str,
         else:
             product_img = Image.open(product_image_path).convert("RGBA")
 
-        # Generate AI background
-        bg_prompt = prompt + ", clean studio background, soft gradient, no products, no text, bokeh background"
+        # ── Background prompt — NEVER include product/bottle/dairy mentions ──
+        # We extract only the setting/mood words from the topic, not the product.
+        # This prevents the AI from generating competitor bottles or random dairy.
+        bg_prompt = (
+            "Clean empty modern kitchen background, blue and white color scheme, "
+            "soft natural morning light coming through window, smooth marble counter surface, "
+            "very soft bokeh blur, no people, absolutely NO products NO bottles NO containers "
+            "NO food items NO dairy items NO text, pure clean background only, "
+            "professional advertising studio backdrop, ultra-realistic, 8K photography"
+        )
         bg_path = _try_together(bg_prompt)
+        if not bg_path:
+            # Fallback: try Pollinations for background
+            bg_path = _try_pollinations(bg_prompt)
         if not bg_path:
             return None
 
         bg_full = os.path.join(os.path.dirname(__file__), bg_path.lstrip("/"))
         background = Image.open(bg_full).convert("RGBA").resize((1024, 1024))
 
-        # Resize product to fit nicely (65% of canvas height, centered)
-        max_h = int(1024 * 0.65)
+        # Slightly enhance background brightness/contrast for a premium look
+        bg_rgb = background.convert("RGB")
+        bg_rgb = ImageEnhance.Brightness(bg_rgb).enhance(1.05)
+        bg_rgb = ImageEnhance.Contrast(bg_rgb).enhance(1.1)
+        background = bg_rgb.convert("RGBA")
+
+        # Resize product to 70% of canvas height, centered horizontally
+        max_h = int(1024 * 0.70)
         ratio = max_h / product_img.height
         new_w = int(product_img.width * ratio)
         product_resized = product_img.resize((new_w, max_h), Image.LANCZOS)
 
-        # Add subtle drop shadow
-        shadow = Image.new("RGBA", (new_w + 30, max_h + 30), (0, 0, 0, 0))
-        shadow_layer = Image.new("RGBA", (new_w, max_h), (0, 0, 0, 80))
-        shadow.paste(shadow_layer, (15, 15))
-        shadow = shadow.filter(ImageFilter.GaussianBlur(12))
+        # Stronger drop shadow for depth
+        shadow_pad = 40
+        shadow = Image.new("RGBA", (new_w + shadow_pad*2, max_h + shadow_pad*2), (0, 0, 0, 0))
+        shadow_layer = Image.new("RGBA", (new_w, max_h), (0, 0, 0, 100))
+        shadow.paste(shadow_layer, (shadow_pad, shadow_pad))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(20))
 
-        # Center-bottom placement
+        # Center the product, sitting above the bottom edge
         x = (1024 - new_w) // 2
-        y = 1024 - max_h - 60
-        background.paste(shadow, (x - 15, y - 15), shadow)
+        y = 1024 - max_h - 40
+        background.paste(shadow, (x - shadow_pad, y - shadow_pad), shadow)
         background.paste(product_resized, (x, y), product_resized)
 
         # Overlay brand logo in bottom-right corner
