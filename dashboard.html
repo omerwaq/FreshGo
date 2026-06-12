@@ -962,6 +962,23 @@ Any questions? Call/WhatsApp: 0300-3147887</div>
   </div><!-- .content -->
 </div><!-- .main -->
 
+<!-- Reset Password Modal -->
+<div id="reset-pw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1001;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:90%;max-width:380px;box-shadow:0 24px 64px rgba(0,0,0,.3);">
+    <h3 id="reset-pw-title" style="font-size:17px;font-weight:700;margin-bottom:18px;color:var(--text);">Reset Password</h3>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">New Password</label>
+      <input id="reset-pw-input" type="text" placeholder="Enter new password"
+        style="width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;outline:none;font-family:inherit;"/>
+    </div>
+    <div id="reset-pw-err" style="display:none;background:#fee2e2;border-radius:8px;padding:9px 12px;color:#b91c1c;font-size:13px;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeResetPw()" style="flex:1;padding:11px;border:1.5px solid var(--border);background:#fff;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="submitResetPw()" style="flex:2;padding:11px;background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Save New Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add User Modal -->
 <div id="add-user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:16px;padding:28px;width:90%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.3);">
@@ -1676,30 +1693,100 @@ async function loadUsers(){
     const users = d.users || [];
     if(!users.length){ list.innerHTML=''; empty.style.display='block'; return; }
     list.innerHTML = users.map(u => `
-      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;background:#fff;">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;background:#fff;flex-wrap:wrap;">
         <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">
           ${u.role==='owner'?'👑':'👤'}
         </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:14px;color:var(--text);">${u.full_name||u.username}</div>
-          <div style="font-size:12px;color:var(--muted);">@${u.username} · ${u.role==='owner'?'Owner':'Staff'} · Added ${u.created_at?u.created_at.split('T')[0]:''}</div>
+        <div style="flex:1;min-width:120px;">
+          <div style="font-weight:700;font-size:14px;color:var(--text);">${escHtml(u.full_name||u.username)}</div>
+          <div style="font-size:12px;color:var(--muted);">@${escHtml(u.username)} · ${u.role==='owner'?'Owner':'Staff'} · Added ${u.created_at?u.created_at.split('T')[0]:''}</div>
         </div>
         <span style="background:${u.role==='owner'?'#d1fae5':'#e0e7ff'};color:${u.role==='owner'?'#065f46':'#3730a3'};font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;">
           ${u.role==='owner'?'OWNER':'STAFF'}
         </span>
-        <button onclick="deleteUser(${u.id},'${u.username}')" style="background:#fee2e2;color:#ef4444;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;">
-          Delete
+        <button data-uid="${u.id}" data-uname="${escAttr(u.username)}" class="btn-reset-pw"
+          style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          🔑 Reset Password
+        </button>
+        <button data-uid="${u.id}" data-uname="${escAttr(u.username)}" class="btn-del-user"
+          style="background:#fee2e2;color:#ef4444;border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;">
+          🗑 Delete
         </button>
       </div>
     `).join('');
-  }catch(e){ list.innerHTML='<div style="color:#ef4444;padding:16px;">Error loading users.</div>'; }
+
+    // Attach events after render (avoids inline onclick quoting issues)
+    document.querySelectorAll('.btn-del-user').forEach(btn => {
+      btn.addEventListener('click', () => deleteUser(btn.dataset.uid, btn.dataset.uname));
+    });
+    document.querySelectorAll('.btn-reset-pw').forEach(btn => {
+      btn.addEventListener('click', () => openResetPw(btn.dataset.uid, btn.dataset.uname));
+    });
+
+  }catch(e){ list.innerHTML=`<div style="color:#ef4444;padding:16px;">Error: ${e.message}</div>`; }
 }
 
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+
 async function deleteUser(id, username){
-  if(!confirm(`Remove @${username} from the team?`)) return;
-  const r = await fetch(`/api/users/${id}`, {method:'DELETE'});
-  if(r.ok){ toast('User removed'); loadUsers(); }
-  else { toast('Failed to remove user'); }
+  if(!confirm(`Remove @${username} from the team? This cannot be undone.`)) return;
+  try{
+    const r = await fetch(`/api/users/${id}`, {method:'DELETE'});
+    if(r.ok){
+      toast('User removed ✅');
+      loadUsers();
+    } else if(r.status === 401){
+      alert('Your session expired. The page will reload — please log in again.');
+      window.location.href = '/login?next=/dashboard';
+    } else {
+      const d = await r.json().catch(()=>({}));
+      alert('Could not delete: ' + (d.error || `Server error ${r.status}`));
+    }
+  }catch(e){
+    alert('Network error: ' + e.message);
+  }
+}
+
+// ── Reset Password ────────────────────────────────────────────────────────────
+let resetPwUserId = null;
+
+function openResetPw(id, username){
+  resetPwUserId = id;
+  document.getElementById('reset-pw-title').textContent = `Reset password for @${username}`;
+  document.getElementById('reset-pw-input').value = '';
+  document.getElementById('reset-pw-err').style.display = 'none';
+  document.getElementById('reset-pw-modal').style.display = 'flex';
+}
+function closeResetPw(){
+  document.getElementById('reset-pw-modal').style.display = 'none';
+  resetPwUserId = null;
+}
+async function submitResetPw(){
+  const pw = document.getElementById('reset-pw-input').value.trim();
+  const errEl = document.getElementById('reset-pw-err');
+  errEl.style.display = 'none';
+  if(!pw || pw.length < 4){ errEl.textContent='Password must be at least 4 characters.'; errEl.style.display='block'; return; }
+  try{
+    const r = await fetch(`/api/users/${resetPwUserId}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    if(r.ok){
+      closeResetPw();
+      toast('Password updated ✅ — tell the employee their new password');
+    } else if(r.status === 401){
+      alert('Session expired. Please log in again.');
+      window.location.href = '/login?next=/dashboard';
+    } else {
+      const d = await r.json().catch(()=>({}));
+      errEl.textContent = d.error || `Error ${r.status}`;
+      errEl.style.display = 'block';
+    }
+  }catch(e){
+    errEl.textContent = 'Network error: ' + e.message;
+    errEl.style.display = 'block';
+  }
 }
 
 function openAddUser(){
@@ -1734,9 +1821,12 @@ async function submitAddUser(){
   else { errEl.textContent=d.error||'Error'; errEl.style.display='block'; }
 }
 
-// close modal on backdrop click
+// close modals on backdrop click
 document.getElementById('add-user-modal').addEventListener('click', function(e){
   if(e.target===this) closeAddUser();
+});
+document.getElementById('reset-pw-modal').addEventListener('click', function(e){
+  if(e.target===this) closeResetPw();
 });
 
 // init on load
