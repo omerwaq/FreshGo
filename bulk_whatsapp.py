@@ -60,34 +60,73 @@ def fetch_customers_from_railway() -> list:
 
 
 def read_excel(filepath: str) -> list:
-    """Read customers from an Excel file."""
+    """Read customers from an Excel file. Auto-detects Rider Delivery Report format."""
     try:
-        import openpyxl
+        import openpyxl, re
         wb = openpyxl.load_workbook(filepath)
         ws = wb.active
-        headers = [str(ws.cell(1, c).value or "").strip().lower()
+
+        # Find header row (skip title row if present)
+        header_row = 1
+        for r in range(1, 6):
+            cells = [str(ws.cell(r, c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+            if any("customer" in h or "phone" in h for h in cells):
+                header_row = r
+                break
+
+        headers = [str(ws.cell(header_row, c).value or "").strip().lower()
                    for c in range(1, ws.max_column + 1)]
 
-        name_col    = next((i for i, h in enumerate(headers) if "name"    in h), None)
-        phone_col   = next((i for i, h in enumerate(headers) if "phone"   in h or "number" in h or "mobile" in h), None)
-        qty_col     = next((i for i, h in enumerate(headers) if "qty"     in h or "quant"  in h or "litre"  in h), None)
-        product_col = next((i for i, h in enumerate(headers) if "product" in h), None)
+        def find_col(*keywords):
+            for kw in keywords:
+                for i, h in enumerate(headers):
+                    if kw in h:
+                        return i
+            return None
+
+        name_col    = find_col("customer", "name")
+        phone_col   = find_col("phone", "number", "mobile")
+        qty_col     = find_col("quantity", "qty", "litre")
+        product_col = find_col("product")
+        area_col    = find_col("area")
+        rider_col   = find_col("rider")
+        amount_col  = find_col("amount")
+        payment_col = find_col("cash")  # "cash/credit" column
 
         if phone_col is None:
             print("❌ Excel mein Phone/Number column nahi mila!")
             return []
 
+        # Detect if this is a Rider Delivery Report
+        is_delivery_report = rider_col is not None and area_col is not None
+
         customers = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            phone = str(row[phone_col] or "").strip()
-            if not phone or phone.lower() == "none":
+        for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+            if not row or all(v is None for v in row):
                 continue
-            customers.append({
-                "name":     str(row[name_col]    or "Customer").strip() if name_col    is not None else "Customer",
+            phone = str(row[phone_col] or "").strip()
+            if not phone or phone.lower() == "none" or not any(ch.isdigit() for ch in phone):
+                continue
+
+            # Strip trailing (ID) from customer name e.g. "Hassan Muhammad(8)"
+            raw_name = str(row[name_col] or "Customer").strip() if name_col is not None else "Customer"
+            name = re.sub(r"\s*\(\d+\)$", "", raw_name).strip() or "Customer"
+
+            c = {
+                "name":     name,
                 "phone":    clean_phone(phone),
-                "quantity": str(row[qty_col]     or "").strip()         if qty_col     is not None else "",
-                "product":  str(row[product_col] or "doodh").strip()    if product_col is not None else "doodh",
-            })
+                "quantity": str(row[qty_col]     or "").strip() if qty_col     is not None else "",
+                "product":  str(row[product_col] or "doodh").strip() if product_col is not None else "doodh",
+            }
+            if is_delivery_report:
+                c["area"]    = str(row[area_col]    or "").strip() if area_col    is not None else ""
+                c["rider"]   = str(row[rider_col]   or "").strip() if rider_col   is not None else ""
+                c["amount"]  = str(row[amount_col]  or "").strip() if amount_col  is not None else ""
+                c["payment"] = str(row[payment_col] or "").strip() if payment_col is not None else ""
+            customers.append(c)
+
+        if is_delivery_report:
+            print(f"ℹ️  Rider Delivery Report format detected")
         return customers
     except Exception as e:
         print(f"❌ Excel read error: {e}")
@@ -177,13 +216,36 @@ def send_messages(customers: list, message_template: str):
         qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
 
         today = datetime.now().strftime("%-d %B %Y")  # e.g. "12 June 2026"
-        msg = message_template.format(
-            name=name,
-            product=product,
-            qty=qty_with_unit,
-            quantity=qty_text,
-            date=today,
-        )
+
+        # Build delivery report message if extra fields are present
+        area    = c.get("area", "")
+        rider   = c.get("rider", "")
+        amount  = c.get("amount", "")
+        payment = c.get("payment", "")
+
+        if rider and area and message_template == DEFAULT_MESSAGE:
+            # Richer message for Rider Delivery Report Excel
+            msg = (
+                f"Dear {name}, 🌿\n\n"
+                f"📅 {today}\n\n"
+                f"Aaj aapki delivery complete ho gayi! ✅\n\n"
+                f"📦 {product} — {qty_with_unit}\n"
+                f"📍 Area: {area}\n"
+                f"🚴 Rider: {rider}\n"
+                + (f"💰 Amount: Rs. {amount}\n" if amount else "")
+                + (f"💳 Payment: {payment}\n" if payment else "")
+                + f"\nShukriya Fresh Go choose karne ke liye! ❤️\n"
+                f"Mona Dairy Farms, Nankana Sahib 🐄\n"
+                f"Call/WhatsApp: 0300-3147887"
+            )
+        else:
+            msg = message_template.format(
+                name=name,
+                product=product,
+                qty=qty_with_unit,
+                quantity=qty_text,
+                date=today,
+            )
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
 

@@ -880,6 +880,82 @@ Any questions? Call/WhatsApp: 0300-3147887</div>
         </div>
       </div>
 
+      <!-- ── Rider Delivery Report → WhatsApp ──────────────────────────────── -->
+      <div class="section-card" style="margin-top:16px;">
+        <div class="sc-header">
+          <div class="sc-title">🚴 Rider Delivery Report → WhatsApp</div>
+          <span style="font-size:12px;color:var(--muted);">Upload Excel → send delivery confirmation to each customer</span>
+        </div>
+        <div style="padding:20px;">
+
+          <!-- Upload -->
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#1e40af;margin-bottom:6px;">📤 Upload Rider Delivery Report (.xlsx)</div>
+            <div style="font-size:13px;color:#374151;margin-bottom:12px;">
+              <strong>freshgo.dairycare.info/dash/Delivery</strong> se Excel download karo, phir yahan upload karo.
+            </div>
+            <input type="file" id="dr-file" accept=".xlsx,.xls" style="display:none" onchange="parseDRExcel(this)"/>
+            <button onclick="document.getElementById('dr-file').click()"
+              style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+              📂 Choose Excel File
+            </button>
+            <span id="dr-file-name" style="font-size:12px;color:#64748b;margin-left:12px;"></span>
+          </div>
+
+          <!-- Message Template -->
+          <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
+            <div style="font-weight:700;color:#92400e;margin-bottom:8px;">✏️ Delivery Confirmation Message</div>
+            <textarea id="dr-message" style="width:100%;min-height:130px;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;font-size:13px;resize:vertical;box-sizing:border-box;line-height:1.6;"></textarea>
+            <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.8;">
+              <strong>[Name]</strong> · <strong>[Product]</strong> · <strong>[Qty]</strong> · <strong>[Amount]</strong> · <strong>[Rider]</strong> · <strong>[Area]</strong> · <strong>[Payment]</strong>
+            </div>
+          </div>
+
+          <!-- Preview (shown after Excel upload) -->
+          <div id="dr-preview" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="font-weight:700;color:#1e293b;font-size:14px;">📋 Customers from Report</div>
+              <div id="dr-count" style="font-size:12px;color:#64748b;background:#f1f5f9;padding:4px 10px;border-radius:6px;font-weight:600;"></div>
+            </div>
+            <div id="dr-rider-summary" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+            <div id="dr-customer-list" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;max-height:380px;overflow-y:auto;"></div>
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+              <button onclick="startDRQueue()"
+                style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">
+                📲 Send WhatsApp to All
+              </button>
+              <button onclick="copyDRNumbers()"
+                style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+                📋 Copy All Numbers
+              </button>
+            </div>
+
+            <!-- DR Send Queue Panel -->
+            <div id="dr-queue-panel" style="display:none;margin-top:16px;background:#f0fdf4;border:2px solid #25d366;border-radius:12px;padding:16px 20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-weight:700;color:#065f46;font-size:14px;">📲 Send Queue</div>
+                <div id="dr-queue-progress" style="font-size:12px;color:#64748b;"></div>
+              </div>
+              <div id="dr-queue-customer" style="background:#fff;border-radius:8px;padding:12px 14px;margin-bottom:10px;border:1px solid #bbf7d0;">
+                <div id="dr-queue-name" style="font-weight:700;font-size:15px;color:#1e293b;"></div>
+                <div id="dr-queue-info" style="font-size:12px;color:#64748b;margin-top:2px;"></div>
+                <div id="dr-queue-msg" style="font-size:12px;color:#374151;margin-top:8px;white-space:pre-line;background:#f8fafc;padding:8px;border-radius:6px;"></div>
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button onclick="openDRCurrentWA()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;flex:1;">
+                  📱 Open in WhatsApp
+                </button>
+                <button onclick="nextDRQueue()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">
+                  Next →
+                </button>
+                <button onclick="closeDRQueue()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;">✕</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- ── Weekly Posts Tab ──────────────────────────────────────────────── -->
@@ -1605,6 +1681,141 @@ function cleanPhone(p){
   if(p.startsWith('0')) p = '92' + p.slice(1);
   else if(!p.startsWith('92')) p = '92' + p;
   return p;
+}
+
+// ── Rider Delivery Report → WhatsApp ──────────────────────────────────────
+const DR_DEFAULT_MSG = `Dear [Name], 🌿
+
+Aaj aapki delivery complete ho gayi! ✅
+
+📦 Product: [Product] — [Qty] Litre(s)
+📍 Area: [Area]
+🚴 Rider: [Rider]
+💰 Amount: Rs. [Amount]
+💳 Payment: [Payment]
+
+Shukriya Fresh Go choose karne ke liye! ❤️
+Mona Dairy Farms, Nankana Sahib 🐄
+Call/WhatsApp: 0300-3147887`;
+
+let drCustomers = [];
+let drQueueList = [], drQueueIdx = 0;
+
+// Set default message on load
+(function(){ const ta=document.getElementById('dr-message'); if(ta) ta.value=DR_DEFAULT_MSG; })();
+
+async function parseDRExcel(input){
+  const file = input.files[0];
+  if(!file) return;
+  document.getElementById('dr-file-name').textContent = '⏳ Parsing...';
+  const fd = new FormData();
+  fd.append('file', file);
+  try{
+    const res  = await fetch('/api/parse-delivery-report', {method:'POST', body:fd});
+    const data = await res.json();
+    if(data.error){ alert('Error: '+data.error); document.getElementById('dr-file-name').textContent=''; return; }
+    drCustomers = data.customers || [];
+    document.getElementById('dr-file-name').textContent = `✅ ${drCustomers.length} customers loaded`;
+    renderDRPreview(data);
+  } catch(e){
+    alert('Error: '+e.message);
+    document.getElementById('dr-file-name').textContent = '';
+  }
+}
+
+function renderDRPreview(data){
+  document.getElementById('dr-preview').style.display = 'block';
+  document.getElementById('dr-count').textContent = data.count + ' customers';
+
+  // Rider pills
+  const riderDiv = document.getElementById('dr-rider-summary');
+  riderDiv.innerHTML = Object.entries(data.riders||{}).map(([r,n]) =>
+    `<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:4px 12px;font-size:11.5px;font-weight:600;color:#1e40af;">🚴 ${r}: ${n}</span>`
+  ).join('');
+
+  // Customer rows
+  const box = document.getElementById('dr-customer-list');
+  if(!drCustomers.length){
+    box.innerHTML = '<div style="padding:14px 16px;color:#64748b;font-size:13px;">Koi customers nahi mile.</div>';
+    return;
+  }
+  box.innerHTML = drCustomers.map((c,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9;background:${i%2?'#f8fafc':'#fff'}">
+      <input type="checkbox" id="dr-chk_${i}" checked style="width:16px;height:16px;cursor:pointer;accent-color:#25d366;"/>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;color:#1e293b;">${c.name}</div>
+        <div style="font-size:11.5px;color:#64748b;">${c.phone} · ${c.area} · ${c.product} ${c.quantity}L · Rs.${c.amount} (${c.payment})</div>
+        <div style="font-size:11px;color:#94a3b8;">🚴 ${c.rider}</div>
+      </div>
+      ${c.phone ? `<a href="${drWaLink(c)}" target="_blank"
+        style="background:#25d366;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
+        Send ↗</a>` : '<span style="font-size:11px;color:#ef4444;">No phone</span>'}
+    </div>`).join('');
+}
+
+function drFillMsg(template, c){
+  return template
+    .replace(/\[Name\]/g,    c.name    || 'Customer')
+    .replace(/\[Product\]/g, c.product || 'Fresh Milk')
+    .replace(/\[Qty\]/g,     c.quantity || '')
+    .replace(/\[Amount\]/g,  c.amount  || '')
+    .replace(/\[Rider\]/g,   c.rider   || '')
+    .replace(/\[Area\]/g,    c.area    || '')
+    .replace(/\[Payment\]/g, c.payment || '');
+}
+
+function drWaLink(c){
+  const phone = (c.phone||'').replace(/\D/g,'');
+  const template = document.getElementById('dr-message').value.trim() || DR_DEFAULT_MSG;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(drFillMsg(template, c))}`;
+}
+
+function startDRQueue(){
+  const selected = drCustomers.filter((c,i) => {
+    const chk = document.getElementById('dr-chk_'+i);
+    return chk && chk.checked && c.phone;
+  });
+  if(!selected.length){ alert('Koi customer nahi mila phone number ke sath.'); return; }
+  drQueueList = selected; drQueueIdx = 0;
+  document.getElementById('dr-queue-panel').style.display = 'block';
+  showDRQueueCustomer();
+  openDRCurrentWA();
+}
+
+function showDRQueueCustomer(){
+  if(drQueueIdx >= drQueueList.length){
+    document.getElementById('dr-queue-customer').innerHTML =
+      '<div style="text-align:center;padding:10px;color:#065f46;font-weight:700;">✅ Sab customers ko message ho gaya!</div>';
+    document.getElementById('dr-queue-progress').textContent = '';
+    return;
+  }
+  const c = drQueueList[drQueueIdx];
+  const template = document.getElementById('dr-message').value.trim() || DR_DEFAULT_MSG;
+  document.getElementById('dr-queue-name').textContent = c.name;
+  document.getElementById('dr-queue-info').textContent = `${c.phone} · ${c.area} · Rs.${c.amount} (${c.payment})`;
+  document.getElementById('dr-queue-msg').textContent  = drFillMsg(template, c);
+  document.getElementById('dr-queue-progress').textContent = `${drQueueIdx+1} / ${drQueueList.length}`;
+}
+
+function openDRCurrentWA(){
+  if(drQueueIdx < drQueueList.length) window.open(drWaLink(drQueueList[drQueueIdx]), '_blank');
+}
+
+function nextDRQueue(){
+  drQueueIdx++;
+  showDRQueueCustomer();
+  if(drQueueIdx < drQueueList.length) openDRCurrentWA();
+}
+
+function closeDRQueue(){
+  document.getElementById('dr-queue-panel').style.display = 'none';
+  drQueueList = []; drQueueIdx = 0;
+}
+
+function copyDRNumbers(){
+  const nums = drCustomers.filter(c=>c.phone).map(c=>c.phone).join('\n');
+  if(!nums){ alert('Koi phone numbers nahi hain.'); return; }
+  navigator.clipboard.writeText(nums).then(()=>toast('📋 Numbers copied!'));
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

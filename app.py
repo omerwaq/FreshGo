@@ -810,6 +810,94 @@ async def export_customers():
     )
 
 
+@app.post("/api/parse-delivery-report")
+async def parse_delivery_report(file: UploadFile = File(...)):
+    """
+    Parse a Rider Delivery Report Excel (columns: #, Date, Customer, Phone, Area,
+    Rider, Cash/Credit, Shift, Shop, Type, Order No, Product, Quantity, Rate, Amount, User).
+    Returns structured customer list ready for WhatsApp sending.
+    """
+    import openpyxl, io, re
+    contents = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Cannot read Excel: {e}"})
+
+    ws = wb.active
+
+    # Find header row — skip any title row at the top
+    header_row = 1
+    for r in range(1, 6):
+        cells = [str(ws.cell(r, c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+        if any("customer" in h or "phone" in h for h in cells):
+            header_row = r
+            break
+
+    headers = [str(ws.cell(header_row, c).value or "").strip().lower()
+               for c in range(1, ws.max_column + 1)]
+
+    def find_col(*keywords):
+        for kw in keywords:
+            for i, h in enumerate(headers):
+                if kw in h:
+                    return i
+        return None
+
+    c_customer = find_col("customer")
+    c_phone    = find_col("phone")
+    c_area     = find_col("area")
+    c_rider    = find_col("rider")
+    c_product  = find_col("product")
+    c_qty      = find_col("quantity", "qty")
+    c_rate     = find_col("rate")
+    c_amount   = find_col("amount")
+    c_payment  = find_col("cash")   # "cash/credit" column
+    c_date     = find_col("date")
+
+    if c_phone is None:
+        return JSONResponse(status_code=400, content={"error": "Phone column not found in Excel"})
+
+    customers = []
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+        if not row or all(v is None for v in row):
+            continue
+        phone = str(row[c_phone] or "").strip()
+        if not phone or phone.lower() == "none" or not any(ch.isdigit() for ch in phone):
+            continue
+
+        # Strip trailing (ID) from customer name e.g. "Hassan Muhammad(8)" → "Hassan Muhammad"
+        raw_name = str(row[c_customer] or "").strip() if c_customer is not None else "Customer"
+        name = re.sub(r"\s*\(\d+\)$", "", raw_name).strip() or "Customer"
+
+        # Normalise phone to Pakistani format
+        phone = re.sub(r"[\s\-]", "", phone)
+        if phone.startswith("0"):
+            phone = "92" + phone[1:]
+        elif not phone.startswith("92"):
+            phone = "92" + phone
+
+        customers.append({
+            "name":     name,
+            "phone":    phone,
+            "area":     str(row[c_area]    or "").strip() if c_area    is not None else "",
+            "rider":    str(row[c_rider]   or "").strip() if c_rider   is not None else "",
+            "product":  str(row[c_product] or "Fresh Milk").strip() if c_product is not None else "Fresh Milk",
+            "quantity": str(row[c_qty]     or "").strip() if c_qty     is not None else "",
+            "rate":     str(row[c_rate]    or "").strip() if c_rate    is not None else "",
+            "amount":   str(row[c_amount]  or "").strip() if c_amount  is not None else "",
+            "payment":  str(row[c_payment] or "").strip() if c_payment is not None else "",
+            "date":     str(row[c_date]    or "").strip() if c_date    is not None else "",
+        })
+
+    riders = {}
+    for c in customers:
+        r = c["rider"] or "Unknown"
+        riders[r] = riders.get(r, 0) + 1
+
+    return {"customers": customers, "count": len(customers), "riders": riders}
+
+
 @app.post("/api/send-delivery-messages")
 async def send_delivery_messages(request: Request):
     """
