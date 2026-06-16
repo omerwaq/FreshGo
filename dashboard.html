@@ -841,9 +841,10 @@ tr:hover td{background:#f9fdf9;}
                 <div id="queue-msg" style="font-size:12px;color:#374151;margin-top:8px;white-space:pre-line;background:#f8fafc;padding:8px;border-radius:6px;"></div>
               </div>
               <div style="display:flex;gap:10px;">
-                <button onclick="openCurrentWA()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;flex:1;">
+                <a id="wa-open-link" href="#" target="_blank"
+                  style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;flex:1;text-align:center;text-decoration:none;display:block;">
                   📱 Open in WhatsApp
-                </button>
+                </a>
                 <button onclick="nextInQueue()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">
                   Next →
                 </button>
@@ -942,9 +943,10 @@ Any questions? Call/WhatsApp: 0300-3147887</div>
                 <div id="dr-queue-msg" style="font-size:12px;color:#374151;margin-top:8px;white-space:pre-line;background:#f8fafc;padding:8px;border-radius:6px;"></div>
               </div>
               <div style="display:flex;gap:10px;">
-                <button onclick="openDRCurrentWA()" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;flex:1;">
+                <a id="dr-open-link" href="#" target="_blank"
+                  style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;flex:1;text-align:center;text-decoration:none;display:block;">
                   📱 Open in WhatsApp
-                </button>
+                </a>
                 <button onclick="nextDRQueue()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;">
                   Next →
                 </button>
@@ -1269,8 +1271,15 @@ function fillPlaceholders(template, c){
     .replace(/\[Address\]/g, c.address  || '');
 }
 
+function normalizePhone(p){
+  p = (p||'').replace(/[\s\-\+\(\)]/g,'').replace(/\D/g,'');
+  if(p.startsWith('0')) return '92' + p.slice(1);
+  if(!p.startsWith('92')) return '92' + p;
+  return p;
+}
+
 function waLink(c){
-  const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'92');
+  const phone = normalizePhone(c.phone);
   const template = document.getElementById('bulk-message').value.trim() ||
     MSG_TEMPLATES.delivery;
   const msg = fillPlaceholders(template, c);
@@ -1288,12 +1297,10 @@ function startSendQueue(){
     alert('Koi customer nahi mila phone number ke sath.');
     return;
   }
-  // Open wa.me links one by one
   queueList = selected;
   queueIdx  = 0;
   document.getElementById('send-queue-panel').style.display = 'block';
   showQueueCustomer();
-  openCurrentWA();
 }
 
 function showQueueCustomer(){
@@ -1301,29 +1308,30 @@ function showQueueCustomer(){
     document.getElementById('queue-customer').innerHTML =
       '<div style="text-align:center;padding:10px;color:#065f46;font-weight:700;">✅ Sab customers ko message ho gaya!</div>';
     document.getElementById('queue-progress').textContent = '';
+    const link = document.getElementById('wa-open-link');
+    if(link){ link.href='#'; link.style.opacity='0.4'; link.style.pointerEvents='none'; }
     return;
   }
   const c = queueList[queueIdx];
   const template = document.getElementById('bulk-message').value.trim() || MSG_TEMPLATES.delivery;
   const msg = fillPlaceholders(template, c);
   document.getElementById('queue-name').textContent = c.name || 'Customer';
-  document.getElementById('queue-phone').textContent = c.phone + (c.product ? ' · ' + c.product + ' ' + (c.quantity||'') : '');
+  document.getElementById('queue-phone').textContent = normalizePhone(c.phone) + (c.product ? ' · ' + c.product + ' ' + (c.quantity||'') : '');
   document.getElementById('queue-msg').textContent = msg;
   document.getElementById('queue-progress').textContent = `${queueIdx+1} / ${queueList.length}`;
+  // Update anchor href directly — never blocked by popup blocker
+  const link = document.getElementById('wa-open-link');
+  if(link){ link.href = waLink(c); link.style.opacity='1'; link.style.pointerEvents='auto'; }
 }
 
 function openCurrentWA(){
-  if(queueIdx >= queueList.length) return;
-  const c = queueList[queueIdx];
-  window.open(waLink(c), '_blank');
+  const link = document.getElementById('wa-open-link');
+  if(link && link.href !== '#') link.click();
 }
 
 function nextInQueue(){
   queueIdx++;
   showQueueCustomer();
-  if(queueIdx < queueList.length){
-    openCurrentWA();
-  }
 }
 
 function closeQueue(){
@@ -1366,11 +1374,11 @@ async function uploadAndSend(input){
       if(!phoneKey){ alert('Phone Number column nahi mili Excel mein.'); return; }
 
       bulkCustomers = rows.map(r => ({
-        name:     String(r[nameKey]  || '').trim(),
-        phone:    String(r[phoneKey] || '').trim(),
+        name:     String(r[nameKey]  || '').replace(/\s*\(\d+\)$/, '').trim() || 'Customer',
+        phone:    normalizePhone(String(r[phoneKey] || '')),
         product:  productKey ? String(r[productKey]||'').trim() : '',
         quantity: qtyKey     ? String(r[qtyKey]    ||'').trim() : '',
-      })).filter(c => c.phone);
+      })).filter(c => c.phone && c.phone.length >= 10);
 
       renderBulkList();
       toast(`✅ ${bulkCustomers.length} customers loaded from Excel!`);
@@ -1676,12 +1684,7 @@ async function loadUnpaidCustomers(){
   }
 }
 
-function cleanPhone(p){
-  p = p.replace(/[\s\-\+]/g,'');
-  if(p.startsWith('0')) p = '92' + p.slice(1);
-  else if(!p.startsWith('92')) p = '92' + p;
-  return p;
-}
+function cleanPhone(p){ return normalizePhone(p); }
 
 // ── Rider Delivery Report → WhatsApp ──────────────────────────────────────
 const DR_DEFAULT_MSG = `Dear [Name], 🌿
@@ -1765,7 +1768,7 @@ function drFillMsg(template, c){
 }
 
 function drWaLink(c){
-  const phone = (c.phone||'').replace(/\D/g,'');
+  const phone = normalizePhone(c.phone);
   const template = document.getElementById('dr-message').value.trim() || DR_DEFAULT_MSG;
   return `https://wa.me/${phone}?text=${encodeURIComponent(drFillMsg(template, c))}`;
 }
@@ -1779,7 +1782,6 @@ function startDRQueue(){
   drQueueList = selected; drQueueIdx = 0;
   document.getElementById('dr-queue-panel').style.display = 'block';
   showDRQueueCustomer();
-  openDRCurrentWA();
 }
 
 function showDRQueueCustomer(){
@@ -1787,24 +1789,24 @@ function showDRQueueCustomer(){
     document.getElementById('dr-queue-customer').innerHTML =
       '<div style="text-align:center;padding:10px;color:#065f46;font-weight:700;">✅ Sab customers ko message ho gaya!</div>';
     document.getElementById('dr-queue-progress').textContent = '';
+    const link = document.getElementById('dr-open-link');
+    if(link){ link.href='#'; link.style.opacity='0.4'; link.style.pointerEvents='none'; }
     return;
   }
   const c = drQueueList[drQueueIdx];
   const template = document.getElementById('dr-message').value.trim() || DR_DEFAULT_MSG;
   document.getElementById('dr-queue-name').textContent = c.name;
-  document.getElementById('dr-queue-info').textContent = `${c.phone} · ${c.area} · Rs.${c.amount} (${c.payment})`;
+  document.getElementById('dr-queue-info').textContent = `${normalizePhone(c.phone)} · ${c.area} · Rs.${c.amount} (${c.payment})`;
   document.getElementById('dr-queue-msg').textContent  = drFillMsg(template, c);
   document.getElementById('dr-queue-progress').textContent = `${drQueueIdx+1} / ${drQueueList.length}`;
-}
-
-function openDRCurrentWA(){
-  if(drQueueIdx < drQueueList.length) window.open(drWaLink(drQueueList[drQueueIdx]), '_blank');
+  // Update anchor href — never blocked by popup blocker
+  const link = document.getElementById('dr-open-link');
+  if(link){ link.href = drWaLink(c); link.style.opacity='1'; link.style.pointerEvents='auto'; }
 }
 
 function nextDRQueue(){
   drQueueIdx++;
   showDRQueueCustomer();
-  if(drQueueIdx < drQueueList.length) openDRCurrentWA();
 }
 
 function closeDRQueue(){
