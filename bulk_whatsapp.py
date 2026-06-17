@@ -6,7 +6,7 @@ Fetches today's customers from Railway automatically, then sends messages via Wh
 First run: scan QR code once. After that it stays logged in.
 """
 
-import time, sys, os, json, ssl, urllib.request, urllib.parse
+import time, sys, os, json, ssl, webbrowser, urllib.request, urllib.parse
 from datetime import datetime
 
 try:
@@ -14,12 +14,6 @@ try:
     _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 except Exception:
     _SSL_CTX = ssl.create_default_context()
-
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 # ── Config ────────────────────────────────────────────────────────────────────
 RAILWAY_URL   = "https://freshgo-production.up.railway.app"
@@ -175,110 +169,65 @@ def get_customers() -> list:
     return customers
 
 
-def send_messages(customers: list, message_template: str):
-    print(f"🐄 Fresh Go WhatsApp Bulk Sender")
-    print(f"📋 {len(customers)} customers ko message bheja jayega\n")
+def build_message(c: dict, message_template: str) -> str:
+    name     = c.get("name", "Customer")
+    quantity = c.get("quantity", "")
+    product  = c.get("product", "milk")
+    qty_text = f"{quantity} {product}".strip() if quantity else product
+    unit     = "kg" if "ghee" in product.lower() else "L"
+    qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
+    d = datetime.now()
+    today = f"{d.day} {d.strftime('%B %Y')}"
 
-    os.makedirs(SESSION_DIR, exist_ok=True)
+    area    = c.get("area", "")
+    rider   = c.get("rider", "")
+    amount  = c.get("amount", "")
+    payment = c.get("payment", "")
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--start-maximized")
-    options.add_argument("--disable-notifications")
-    options.add_argument(f"--user-data-dir={SESSION_DIR}")
-
-    driver = webdriver.Chrome(options=options)
-
-    print("🌐 WhatsApp Web khul raha hai...")
-    driver.get("https://web.whatsapp.com")
-
-    print("📱 Agar pehli baar hai to QR scan karo apne phone se.")
-    print("   Pehle scan ke baad next time automatic connect hoga.\n")
-
-    try:
-        WebDriverWait(driver, 90).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
-                'div[data-tab="3"], div[data-testid="chat-list"]'))
+    if rider and area and message_template == DEFAULT_MESSAGE:
+        return (
+            f"Dear {name}, 🌿\n\n"
+            f"📅 {today}\n\n"
+            f"Aaj aapki delivery complete ho gayi! ✅\n\n"
+            f"📦 {product} — {qty_with_unit}\n"
+            f"📍 Area: {area}\n"
+            f"🚴 Rider: {rider}\n"
+            + (f"💰 Amount: Rs. {amount}\n" if amount else "")
+            + (f"💳 Payment: {payment}\n" if payment else "")
+            + f"\nShukriya Fresh Go choose karne ke liye! ❤️\n"
+            f"Mona Dairy Farms, Nankana Sahib 🐄\n"
+            f"Call/WhatsApp: 0300-3147887"
         )
-        print("✅ WhatsApp Web connected!\n")
-    except Exception:
-        print("⏰ Timeout — dobara try karo.")
-        driver.quit()
-        sys.exit(1)
+    return message_template.format(
+        name=name, product=product,
+        qty=qty_with_unit, quantity=qty_text, date=today,
+    )
 
-    sent, failed = 0, 0
 
+def send_messages(customers: list, message_template: str):
+    print(f"\n🐄 Fresh Go WhatsApp Bulk Sender")
+    print(f"📋 {len(customers)} customers ko message bheja jayega")
+    print(f"\n⚡ Browser mein WhatsApp Web khul jayega.")
+    print(f"   Har customer ke liye SEND button dabao, phir yahan ENTER karo.\n")
+    print("=" * 50)
+
+    sent = 0
     for i, c in enumerate(customers):
-        name     = c.get("name", "Customer")
-        phone    = c["phone"]
-        quantity = c.get("quantity", "")
-        product  = c.get("product", "milk")
-        qty_text = f"{quantity} {product}".strip() if quantity else product
-        unit = "kg" if "ghee" in product.lower() else "L"
-        qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
+        name  = c.get("name", "Customer")
+        phone = c["phone"]
+        msg   = build_message(c, message_template)
+        url   = f"https://web.whatsapp.com/send?phone={phone}&text={urllib.parse.quote(msg)}"
 
-        d = datetime.now()
-        today = f"{d.day} {d.strftime('%B %Y')}"   # cross-platform, e.g. "12 June 2026"
+        print(f"\n[{i+1}/{len(customers)}] {name}  ({phone})")
+        print(f"Message:\n{msg}\n")
 
-        # Build delivery report message if extra fields are present
-        area    = c.get("area", "")
-        rider   = c.get("rider", "")
-        amount  = c.get("amount", "")
-        payment = c.get("payment", "")
+        webbrowser.open(url)
+        input("  ✅ Message bhej diya? Enter dabao agla customer ke liye... ")
+        sent += 1
 
-        if rider and area and message_template == DEFAULT_MESSAGE:
-            # Richer message for Rider Delivery Report Excel
-            msg = (
-                f"Dear {name}, 🌿\n\n"
-                f"📅 {today}\n\n"
-                f"Aaj aapki delivery complete ho gayi! ✅\n\n"
-                f"📦 {product} — {qty_with_unit}\n"
-                f"📍 Area: {area}\n"
-                f"🚴 Rider: {rider}\n"
-                + (f"💰 Amount: Rs. {amount}\n" if amount else "")
-                + (f"💳 Payment: {payment}\n" if payment else "")
-                + f"\nShukriya Fresh Go choose karne ke liye! ❤️\n"
-                f"Mona Dairy Farms, Nankana Sahib 🐄\n"
-                f"Call/WhatsApp: 0300-3147887"
-            )
-        else:
-            msg = message_template.format(
-                name=name,
-                product=product,
-                qty=qty_with_unit,
-                quantity=qty_text,
-                date=today,
-            )
-
-        print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
-
-        try:
-            url = f"https://web.whatsapp.com/send?phone={phone}&text={urllib.parse.quote(msg)}"
-            driver.get(url)
-
-            input_box = WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                    'div[data-testid="conversation-compose-box-input"], '
-                    'div[contenteditable="true"][data-tab="10"], '
-                    'footer div[contenteditable="true"]'
-                ))
-            )
-            time.sleep(2)
-            input_box.send_keys(Keys.ENTER)
-            time.sleep(2.5)
-            sent += 1
-            print(f"   ✅ Sent!")
-
-        except Exception as e:
-            failed += 1
-            print(f"   ❌ Failed: {e}")
-
-        time.sleep(1.5)
-
-    print(f"\n{'='*40}")
-    print(f"✅ Sent:   {sent}")
-    print(f"❌ Failed: {failed}")
-    print(f"{'='*40}")
-    driver.quit()
+    print(f"\n{'='*50}")
+    print(f"✅ {sent} customers ko messages bheje gaye!")
+    print(f"{'='*50}")
 
 
 if __name__ == "__main__":
