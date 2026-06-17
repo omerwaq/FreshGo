@@ -215,7 +215,8 @@ def send_messages(customers: list, message_template: str):
         unit = "kg" if "ghee" in product.lower() else "L"
         qty_with_unit = f"{quantity} {unit}" if quantity else f"1 {unit}"
 
-        today = datetime.now().strftime("%-d %B %Y")  # e.g. "12 June 2026"
+        d = datetime.now()
+        today = f"{d.day} {d.strftime('%B %Y')}"   # cross-platform, e.g. "12 June 2026"
 
         # Build delivery report message if extra fields are present
         area    = c.get("area", "")
