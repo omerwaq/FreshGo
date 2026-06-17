@@ -1,12 +1,12 @@
 """
 Fresh Go — Automatic WhatsApp Bulk Sender
 ==========================================
-Double-click "FreshGo WhatsApp Sender.command" on your Mac.
-Fetches today's customers from Railway automatically, then sends messages via WhatsApp Web.
-First run: scan QR code once. After that it stays logged in.
+Double-click "FreshGo WhatsApp Sender.command" on Mac or
+"FreshGo WhatsApp Sender.bat" on Windows.
 """
 
-import time, sys, os, json, ssl, webbrowser, urllib.request, urllib.parse
+import time, sys, os, json, ssl, zipfile, shutil, subprocess
+import urllib.request, urllib.parse
 from datetime import datetime
 
 try:
@@ -16,8 +16,10 @@ except Exception:
     _SSL_CTX = ssl.create_default_context()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-RAILWAY_URL   = "https://freshgo-production.up.railway.app"
-SESSION_DIR   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_session")
+RAILWAY_URL  = "https://freshgo-production.up.railway.app"
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+SESSION_DIR  = os.path.join(BASE_DIR, "whatsapp_session")
+CD_PATH      = os.path.join(BASE_DIR, "chromedriver.exe")   # Windows only
 
 DEFAULT_MESSAGE = """Dear {name}, 🌿
 
@@ -29,6 +31,7 @@ Thank you for choosing Fresh Go! ❤️
 Any questions? Call/WhatsApp: 0300-3147887"""
 
 
+# ── Phone helper ──────────────────────────────────────────────────────────────
 def clean_phone(phone: str) -> str:
     phone = str(phone).strip().replace(" ", "").replace("-", "").replace("+", "")
     if phone.startswith("0"):
@@ -38,8 +41,72 @@ def clean_phone(phone: str) -> str:
     return phone
 
 
+# ── ChromeDriver (Windows auto-download) ──────────────────────────────────────
+def get_chromedriver_path() -> str:
+    """Return path to chromedriver.exe, downloading if needed."""
+    if os.path.exists(CD_PATH):
+        return CD_PATH
+
+    print("🔧 ChromeDriver download ho raha hai (sirf pehli baar)...")
+
+    # Detect Chrome version from Windows registry
+    major = "136"
+    for reg_path in [
+        r"HKLM\SOFTWARE\Google\Chrome\BLBeacon",
+        r"HKCU\SOFTWARE\Google\Chrome\BLBeacon",
+        r"HKLM\SOFTWARE\WOW6432Node\Google\Chrome\BLBeacon",
+    ]:
+        try:
+            result = subprocess.run(
+                ["reg", "query", reg_path, "/v", "version"],
+                capture_output=True, text=True
+            )
+            import re
+            m = re.search(r"(\d+)\.\d+\.\d+\.\d+", result.stdout)
+            if m:
+                major = m.group(1)
+                break
+        except Exception:
+            pass
+
+    print(f"   Chrome version detected: {major}.x")
+
+    # Get exact ChromeDriver version for this Chrome major
+    try:
+        url = f"https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_{major}"
+        with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as r:
+            cd_version = r.read().decode().strip()
+    except Exception:
+        cd_version = f"{major}.0.7395.54"   # fallback guess
+
+    zip_url = (
+        f"https://storage.googleapis.com/chrome-for-testing-public"
+        f"/{cd_version}/win64/chromedriver-win64.zip"
+    )
+    zip_path = os.path.join(BASE_DIR, "chromedriver.zip")
+
+    print(f"   Downloading ChromeDriver {cd_version}...")
+    urllib.request.urlretrieve(zip_url, zip_path)
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for name in zf.namelist():
+            if name.endswith("chromedriver.exe"):
+                zf.extract(name, BASE_DIR)
+                extracted = os.path.join(BASE_DIR, name)
+                shutil.move(extracted, CD_PATH)
+                break
+
+    os.remove(zip_path)
+    extracted_dir = os.path.join(BASE_DIR, "chromedriver-win64")
+    if os.path.isdir(extracted_dir):
+        shutil.rmtree(extracted_dir)
+
+    print("   ✅ ChromeDriver ready!\n")
+    return CD_PATH
+
+
+# ── Railway fetch ─────────────────────────────────────────────────────────────
 def fetch_customers_from_railway() -> list:
-    """Fetch today's customers from Railway. Returns only those with phone numbers."""
     print("📡 Railway se customers fetch ho rahe hain...")
     try:
         url = f"{RAILWAY_URL}/api/todays-customers"
@@ -57,17 +124,17 @@ def fetch_customers_from_railway() -> list:
         return []
 
 
+# ── Excel reader ──────────────────────────────────────────────────────────────
 def read_excel(filepath: str) -> list:
-    """Read customers from an Excel file. Auto-detects Rider Delivery Report format."""
     try:
         import openpyxl, re
         wb = openpyxl.load_workbook(filepath)
         ws = wb.active
 
-        # Find header row (skip title row if present)
         header_row = 1
         for r in range(1, 6):
-            cells = [str(ws.cell(r, c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+            cells = [str(ws.cell(r, c).value or "").strip().lower()
+                     for c in range(1, ws.max_column + 1)]
             if any("customer" in h or "phone" in h for h in cells):
                 header_row = r
                 break
@@ -89,16 +156,15 @@ def read_excel(filepath: str) -> list:
         area_col    = find_col("area")
         rider_col   = find_col("rider")
         amount_col  = find_col("amount")
-        payment_col = find_col("cash")  # "cash/credit" column
+        payment_col = find_col("cash")
 
         if phone_col is None:
             print("❌ Excel mein Phone/Number column nahi mila!")
             return []
 
-        # Detect if this is a Rider Delivery Report
         is_delivery_report = rider_col is not None and area_col is not None
-
         customers = []
+
         for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
             if not row or all(v is None for v in row):
                 continue
@@ -106,7 +172,6 @@ def read_excel(filepath: str) -> list:
             if not phone or phone.lower() == "none" or not any(ch.isdigit() for ch in phone):
                 continue
 
-            # Strip trailing (ID) from customer name e.g. "Hassan Muhammad(8)"
             raw_name = str(row[name_col] or "Customer").strip() if name_col is not None else "Customer"
             name = re.sub(r"\s*\(\d+\)$", "", raw_name).strip() or "Customer"
 
@@ -117,14 +182,14 @@ def read_excel(filepath: str) -> list:
                 "product":  str(row[product_col] or "doodh").strip() if product_col is not None else "doodh",
             }
             if is_delivery_report:
-                c["area"]    = str(row[area_col]    or "").strip() if area_col    is not None else ""
-                c["rider"]   = str(row[rider_col]   or "").strip() if rider_col   is not None else ""
-                c["amount"]  = str(row[amount_col]  or "").strip() if amount_col  is not None else ""
-                c["payment"] = str(row[payment_col] or "").strip() if payment_col is not None else ""
+                c["area"]    = str(row[area_col]   or "").strip()
+                c["rider"]   = str(row[rider_col]  or "").strip()
+                c["amount"]  = str(row[amount_col] or "").strip()
+                c["payment"] = str(row[payment_col]or "").strip()
             customers.append(c)
 
         if is_delivery_report:
-            print(f"ℹ️  Rider Delivery Report format detected")
+            print("ℹ️  Rider Delivery Report format detected")
         return customers
     except Exception as e:
         print(f"❌ Excel read error: {e}")
@@ -132,25 +197,20 @@ def read_excel(filepath: str) -> list:
 
 
 def find_excel_file() -> str | None:
-    """Look for any FreshGo Excel file in the same folder."""
-    folder = os.path.dirname(os.path.abspath(__file__))
-    for f in sorted(os.listdir(folder), reverse=True):
+    for f in sorted(os.listdir(BASE_DIR), reverse=True):
         if f.endswith((".xlsx", ".xls")) and not f.startswith("~"):
-            return os.path.join(folder, f)
+            return os.path.join(BASE_DIR, f)
     return None
 
 
 def get_customers() -> list:
-    """Get customers: first from Railway, then fall back to Excel file."""
     customers = fetch_customers_from_railway()
-
     if customers:
         return customers
 
     print("ℹ️  Railway pe phone numbers nahi hain.")
     print("   Excel file se customers load kiye ja rahe hain...\n")
 
-    # Try to find Excel automatically
     excel_path = find_excel_file()
     if excel_path:
         print(f"📂 Excel mili: {os.path.basename(excel_path)}")
@@ -159,7 +219,6 @@ def get_customers() -> list:
             print(f"✅ {len(customers)} customers Excel se mile\n")
             return customers
 
-    # Ask user to provide Excel path
     print("📂 Excel file ka path paste karo (ya Enter dabaiye cancel ke liye):")
     path = input("Path: ").strip().strip('"').strip("'")
     if path and os.path.exists(path):
@@ -169,6 +228,7 @@ def get_customers() -> list:
     return customers
 
 
+# ── Message builder ───────────────────────────────────────────────────────────
 def build_message(c: dict, message_template: str) -> str:
     name     = c.get("name", "Customer")
     quantity = c.get("quantity", "")
@@ -204,32 +264,85 @@ def build_message(c: dict, message_template: str) -> str:
     )
 
 
+# ── Send via Selenium ─────────────────────────────────────────────────────────
 def send_messages(customers: list, message_template: str):
-    print(f"\n🐄 Fresh Go WhatsApp Bulk Sender")
-    print(f"📋 {len(customers)} customers ko message bheja jayega")
-    print(f"\n⚡ Browser mein WhatsApp Web khul jayega.")
-    print(f"   Har customer ke liye SEND button dabao, phir yahan ENTER karo.\n")
-    print("=" * 50)
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.chrome.service import Service
 
-    sent = 0
+    print(f"🐄 Fresh Go WhatsApp Bulk Sender")
+    print(f"📋 {len(customers)} customers ko message bheja jayega\n")
+
+    options = webdriver.ChromeOptions()
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-notifications")
+    options.add_argument(f"--user-data-dir={SESSION_DIR}")
+    os.makedirs(SESSION_DIR, exist_ok=True)
+
+    if sys.platform == "win32":
+        cd = get_chromedriver_path()
+        driver = webdriver.Chrome(service=Service(cd), options=options)
+    else:
+        driver = webdriver.Chrome(options=options)
+
+    print("🌐 WhatsApp Web khul raha hai...")
+    driver.get("https://web.whatsapp.com")
+    print("📱 Pehli baar: QR code scan karo. Baad mein auto-login hoga.\n")
+
+    try:
+        WebDriverWait(driver, 90).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR,
+                'div[data-tab="3"], div[data-testid="chat-list"]'))
+        )
+        print("✅ WhatsApp Web connected!\n")
+    except Exception:
+        print("⏰ Timeout — dobara try karo.")
+        driver.quit()
+        sys.exit(1)
+
+    sent, failed = 0, 0
+
     for i, c in enumerate(customers):
         name  = c.get("name", "Customer")
         phone = c["phone"]
         msg   = build_message(c, message_template)
-        url   = f"https://web.whatsapp.com/send?phone={phone}&text={urllib.parse.quote(msg)}"
 
-        print(f"\n[{i+1}/{len(customers)}] {name}  ({phone})")
-        print(f"Message:\n{msg}\n")
+        print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
 
-        webbrowser.open(url)
-        input("  ✅ Message bhej diya? Enter dabao agla customer ke liye... ")
-        sent += 1
+        try:
+            url = (f"https://web.whatsapp.com/send?phone={phone}"
+                   f"&text={urllib.parse.quote(msg)}")
+            driver.get(url)
 
-    print(f"\n{'='*50}")
-    print(f"✅ {sent} customers ko messages bheje gaye!")
-    print(f"{'='*50}")
+            box = WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                    'div[data-testid="conversation-compose-box-input"],'
+                    'div[contenteditable="true"][data-tab="10"],'
+                    'footer div[contenteditable="true"]'
+                ))
+            )
+            time.sleep(2)
+            box.send_keys(Keys.ENTER)
+            time.sleep(2.5)
+            sent += 1
+            print(f"   ✅ Sent!")
+        except Exception as e:
+            failed += 1
+            print(f"   ❌ Failed: {e}")
+
+        time.sleep(1.5)
+
+    print(f"\n{'='*40}")
+    print(f"✅ Sent:   {sent}")
+    print(f"❌ Failed: {failed}")
+    print(f"{'='*40}")
+    driver.quit()
 
 
+# ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     customers = get_customers()
 
