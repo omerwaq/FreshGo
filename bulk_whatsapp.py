@@ -264,82 +264,40 @@ def build_message(c: dict, message_template: str) -> str:
     )
 
 
-# ── Send via Selenium ─────────────────────────────────────────────────────────
+# ── Send via webbrowser + pyautogui (no ChromeDriver needed) ─────────────────
 def send_messages(customers: list, message_template: str):
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.keys import Keys
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.chrome.service import Service
-
-    print(f"🐄 Fresh Go WhatsApp Bulk Sender")
-    print(f"📋 {len(customers)} customers ko message bheja jayega\n")
-
-    options = webdriver.ChromeOptions()
-    options.add_argument("--start-maximized")
-    options.add_argument("--disable-notifications")
-    options.add_argument(f"--user-data-dir={SESSION_DIR}")
-    os.makedirs(SESSION_DIR, exist_ok=True)
-
-    if sys.platform == "win32":
-        cd = get_chromedriver_path()
-        driver = webdriver.Chrome(service=Service(cd), options=options)
-    else:
-        driver = webdriver.Chrome(options=options)
-
-    print("🌐 WhatsApp Web khul raha hai...")
-    driver.get("https://web.whatsapp.com")
-    print("📱 Pehli baar: QR code scan karo. Baad mein auto-login hoga.\n")
-
+    import webbrowser
     try:
-        WebDriverWait(driver, 90).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR,
-                'div[data-tab="3"], div[data-testid="chat-list"]'))
-        )
-        print("✅ WhatsApp Web connected!\n")
-    except Exception:
-        print("⏰ Timeout — dobara try karo.")
-        driver.quit()
+        import pyautogui
+    except ImportError:
+        print("❌ pyautogui install nahi. Bat file se dobara chalao.")
         sys.exit(1)
 
-    sent, failed = 0, 0
+    print(f"🐄 Fresh Go WhatsApp Bulk Sender")
+    print(f"📋 {len(customers)} customers ko message bheja jayega")
+    print(f"\n⚠️  Sending shuru hogi — mouse mat hilao aur koi button mat dabao!\n")
+    print("3 second mein shuru hogi...")
+    time.sleep(3)
 
+    sent = 0
     for i, c in enumerate(customers):
         name  = c.get("name", "Customer")
         phone = c["phone"]
         msg   = build_message(c, message_template)
+        url   = (f"https://web.whatsapp.com/send?phone={phone}"
+                 f"&text={urllib.parse.quote(msg)}")
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
-
-        try:
-            url = (f"https://web.whatsapp.com/send?phone={phone}"
-                   f"&text={urllib.parse.quote(msg)}")
-            driver.get(url)
-
-            box = WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                    'div[data-testid="conversation-compose-box-input"],'
-                    'div[contenteditable="true"][data-tab="10"],'
-                    'footer div[contenteditable="true"]'
-                ))
-            )
-            time.sleep(2)
-            box.send_keys(Keys.ENTER)
-            time.sleep(2.5)
-            sent += 1
-            print(f"   ✅ Sent!")
-        except Exception as e:
-            failed += 1
-            print(f"   ❌ Failed: {e}")
-
-        time.sleep(1.5)
+        webbrowser.open(url)
+        time.sleep(7)          # WhatsApp page load hone ka wait
+        pyautogui.press('enter')  # message send
+        time.sleep(3)
+        sent += 1
+        print(f"   ✅ Sent!")
 
     print(f"\n{'='*40}")
-    print(f"✅ Sent:   {sent}")
-    print(f"❌ Failed: {failed}")
+    print(f"✅ {sent} messages bhej diye!")
     print(f"{'='*40}")
-    driver.quit()
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
