@@ -12,7 +12,7 @@ python --version >nul 2>&1
 if errorlevel 1 goto nopython
 
 echo Installing / checking packages...
-python -m pip install --quiet selenium openpyxl webdriver-manager requests
+python -m pip install --quiet selenium openpyxl webdriver-manager requests certifi
 
 :: Delete stale ChromeDriver lock file if it exists
 if exist "%USERPROFILE%\.wdm\.wdm-lock-chromedriver-win64" (

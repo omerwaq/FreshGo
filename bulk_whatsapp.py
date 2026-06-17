@@ -6,8 +6,14 @@ Fetches today's customers from Railway automatically, then sends messages via Wh
 First run: scan QR code once. After that it stays logged in.
 """
 
-import time, sys, os, json, urllib.request, urllib.parse
+import time, sys, os, json, ssl, urllib.request, urllib.parse
 from datetime import datetime
+
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except Exception:
+    _SSL_CTX = ssl.create_default_context()
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -45,7 +51,7 @@ def fetch_customers_from_railway() -> list:
     print("📡 Railway se customers fetch ho rahe hain...")
     try:
         url = f"{RAILWAY_URL}/api/todays-customers"
-        with urllib.request.urlopen(url, timeout=15) as resp:
+        with urllib.request.urlopen(url, timeout=15, context=_SSL_CTX) as resp:
             data = json.loads(resp.read().decode())
         customers = data.get("customers", [])
         for c in customers:
