@@ -14,6 +14,11 @@ if errorlevel 1 goto nopython
 echo Installing / checking packages...
 python -m pip install --quiet selenium openpyxl webdriver-manager requests
 
+:: Delete stale ChromeDriver lock file if it exists
+if exist "%USERPROFILE%\.wdm\.wdm-lock-chromedriver-win64" (
+    del /f "%USERPROFILE%\.wdm\.wdm-lock-chromedriver-win64"
+)
+
 echo.
 python bulk_whatsapp.py
 goto end
