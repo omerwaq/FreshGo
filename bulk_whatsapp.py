@@ -279,6 +279,20 @@ def send_messages(customers: list, message_template: str):
     print("3 second mein shuru hogi...")
     time.sleep(3)
 
+    def focus_chrome():
+        """Bring Chrome window to front on Windows."""
+        if sys.platform == "win32":
+            try:
+                subprocess.run(
+                    ["powershell", "-Command",
+                     "$wshell = New-Object -ComObject wscript.shell; "
+                     "$wshell.AppActivate('Chrome')"],
+                    capture_output=True
+                )
+                time.sleep(0.5)
+            except Exception:
+                pass
+
     sent = 0
     for i, c in enumerate(customers):
         name  = c.get("name", "Customer")
@@ -289,8 +303,9 @@ def send_messages(customers: list, message_template: str):
 
         print(f"📤 [{i+1}/{len(customers)}] {name} ({phone})...")
         webbrowser.open(url)
-        time.sleep(7)          # WhatsApp page load hone ka wait
-        pyautogui.press('enter')  # message send
+        time.sleep(8)       # page load wait
+        focus_chrome()      # Chrome ko foreground mein lao
+        pyautogui.press('enter')   # message send
         time.sleep(3)
         sent += 1
         print(f"   ✅ Sent!")
